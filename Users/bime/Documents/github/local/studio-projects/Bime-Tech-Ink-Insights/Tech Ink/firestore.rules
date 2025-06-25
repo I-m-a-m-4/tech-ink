@@ -1,0 +1,106 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAdmin() {
+      return request.auth.token.email == "bimex4@gmail.com";
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users: Can be read by anyone. Can only be written by the owner or an admin.
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId) || isAdmin();
+    }
+    
+    // Handles: Ensures uniqueness.
+    // A user can create their handle doc.
+    // A user can only update/delete their own handle doc.
+    match /handles/{handle} {
+      allow read: if true;
+      allow create: if request.resource.data.userId == request.auth.uid;
+      allow update, delete: if resource.data.userId == request.auth.uid;
+    }
+
+    // Articles: Can be read by anyone. Can only be written by an admin.
+    match /articles/{articleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Insights: Can be read by anyone. Can only be written by an admin.
+    match /insights/{insightId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+
+    // Feed Items:
+    // Read: Anyone can read feed items.
+    // Create: Any authenticated user can create a feed item.
+    // Update: Only the admin can update feed items (e.g., for moderation).
+    // Delete: The user who created the post OR an admin can delete it.
+    match /feedItems/{itemId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      
+      // Comments on feed items
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow update, delete: if isOwner(request.resource.data.userId) || isAdmin();
+      }
+    }
+    
+    // Daily Topics (Pinned Posts):
+    // Read: Anyone can read.
+    // Write: Only the admin can create/edit/delete pinned posts.
+    match /dailyTopics/{topicId} {
+        allow read: if true;
+        allow write: if isAdmin();
+        
+        // Comments on daily topics
+        match /comments/{commentId} {
+          allow read: if true;
+          allow create: if request.auth != null;
+          allow update, delete: if isOwner(request.resource.data.userId) || isAdmin();
+        }
+    }
+    
+    // Likes:
+    // A user can only create/delete their own like document.
+    match /likes/{likeId} {
+        allow read: if true; // Reading all likes is useful for some queries.
+        allow create: if isOwner(request.resource.data.userId);
+        allow delete: if isOwner(resource.data.userId);
+    }
+
+    // Timelines:
+    // Read: Anyone can read.
+    // Write: Only admin can manage timelines.
+    match /timelines/{timelineId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+
+    // Briefings:
+    // Each briefing is private to its user.
+    match /briefings/{briefingId} {
+        allow read, write: if isOwner(briefingId.split('_')[0]);
+    }
+    
+    // Notifications:
+    // Private to the recipient.
+    match /notifications/{notificationId} {
+        allow read, write: if isOwner(resource.data.recipientId);
+    }
+
+  }
+}

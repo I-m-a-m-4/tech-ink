@@ -1,0 +1,355 @@
+
+"use client";
+
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/contexts/auth-context';
+import { useRouter } from 'next/navigation';
+import { useForm, SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { updateProfile } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, updateDoc, collection, query, where, getDocs, orderBy, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { SiteHeader } from '@/components/site-header';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Loader2, Gem, User as UserIcon, Mail, AtSign, Trash2, Check, AlertCircle } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { type SocialFeedItem } from '@/ai/schemas/social-feed-item-schema';
+import { formatDistanceToNow } from 'date-fns';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { cn } from '@/lib/utils';
+import { useDebounce } from 'use-debounce';
+
+
+const profileFormSchema = z.object({
+  displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }).max(50, { message: "Display name must be less than 50 characters." }),
+  handle: z.string()
+    .min(3, { message: "Handle must be at least 3 characters." })
+    .max(20, { message: "Handle must be less than 20 characters." })
+    .regex(/^[a-zA-Z0-9_]+$/, { message: "Handle can only contain letters, numbers, and underscores." }),
+});
+
+type ProfileFormValues = z.infer<typeof profileFormSchema>;
+type SocialFeedItemWithId = SocialFeedItem & { id: string; createdAt?: any };
+
+export default function SettingsPage() {
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [myPosts, setMyPosts] = useState<SocialFeedItemWithId[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+
+  const [isHandleChecking, setIsHandleChecking] = useState(false);
+  const [isHandleAvailable, setIsHandleAvailable] = useState<boolean | null>(null);
+
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: {
+      displayName: '',
+      handle: '',
+    },
+  });
+  
+  const watchedHandle = form.watch('handle');
+  const [debouncedHandle] = useDebounce(watchedHandle, 500);
+
+  const checkHandleAvailability = useCallback(async (handle: string) => {
+    if (!handle || !db || !user) return;
+    if (handle === profile?.handle.substring(1)) {
+        setIsHandleAvailable(true);
+        return;
+    }
+    setIsHandleChecking(true);
+    try {
+        const handleRef = doc(db, 'handles', handle);
+        const docSnap = await getDoc(handleRef);
+        setIsHandleAvailable(!docSnap.exists());
+    } catch (error) {
+        console.error("Error checking handle:", error);
+        setIsHandleAvailable(false); // Assume not available on error
+    } finally {
+        setIsHandleChecking(false);
+    }
+  }, [user, profile?.handle]);
+
+  useEffect(() => {
+    if (debouncedHandle) {
+        checkHandleAvailability(debouncedHandle);
+    }
+  }, [debouncedHandle, checkHandleAvailability]);
+
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+    if (user && profile) {
+      form.reset({
+        displayName: user.displayName || '',
+        handle: profile.handle.startsWith('@') ? profile.handle.substring(1) : profile.handle,
+      });
+    }
+  }, [user, profile, authLoading, router, form]);
+
+  useEffect(() => {
+    if (!user || !db) return;
+    
+    const fetchUserPosts = async () => {
+        setIsLoadingPosts(true);
+        try {
+            const q = query(
+                collection(db, 'feedItems'), 
+                where('userId', '==', user.uid), 
+                orderBy('createdAt', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            const posts = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId));
+            setMyPosts(posts);
+        } catch (error) {
+            console.error("Error fetching user posts:", error);
+            toast({ variant: "destructive", title: "Failed to load your posts." });
+        } finally {
+            setIsLoadingPosts(false);
+        }
+    };
+
+    fetchUserPosts();
+  }, [user, toast]);
+
+  const handleDeletePost = async (postId: string) => {
+    if (!db) return;
+
+    try {
+        await deleteDoc(doc(db, 'feedItems', postId));
+        setMyPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
+        toast({ title: "Post deleted successfully." });
+    } catch (error) {
+        console.error("Error deleting post:", error);
+        toast({ variant: "destructive", title: "Failed to delete post." });
+    }
+  };
+
+
+  const onSubmit: SubmitHandler<ProfileFormValues> = async (data) => {
+    if (!user || !auth.currentUser || !profile || !db) return;
+    if(!isHandleAvailable) {
+        toast({ variant: "destructive", title: "Handle is not available." });
+        return;
+    }
+    setIsSubmitting(true);
+    try {
+        const batch = writeBatch(db);
+
+        // Update display name on auth user object
+        if (auth.currentUser.displayName !== data.displayName) {
+             await updateProfile(auth.currentUser, { displayName: data.displayName });
+        }
+       
+        const userRef = doc(db, 'users', user.uid);
+        batch.update(userRef, {
+            displayName: data.displayName
+        });
+
+        // Update handle only if it changed
+        const newHandle = data.handle;
+        const oldHandle = profile.handle.substring(1);
+        if (newHandle !== oldHandle) {
+             batch.update(userRef, { handle: `@${newHandle}` });
+             const oldHandleRef = doc(db, 'handles', oldHandle);
+             const newHandleRef = doc(db, 'handles', newHandle);
+             batch.delete(oldHandleRef);
+             batch.set(newHandleRef, { userId: user.uid });
+        }
+
+        await batch.commit();
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
+      });
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: error.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (authLoading || !user) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <SiteHeader />
+      <main className="flex-1">
+        <div className="container mx-auto max-w-4xl px-4 sm:px-6 py-12 md:py-16">
+          <div className="mb-8">
+            <h1 className="text-4xl font-black">Account Settings</h1>
+            <p className="text-muted-foreground">Manage your profile and account information.</p>
+          </div>
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1 space-y-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Your Stats</CardTitle>
+                        <CardDescription>A quick look at your engagement.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <Gem className="h-6 w-6 text-primary" />
+                            <div>
+                                <p className="font-bold text-2xl">{profile?.points ?? 0}</p>
+                                <p className="text-sm text-muted-foreground">Insight Points</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Profile Information</CardTitle>
+                  <CardDescription>Update your public display name and unique handle.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                      <FormField
+                        control={form.control}
+                        name="displayName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Display Name</FormLabel>
+                            <div className="relative">
+                                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <FormControl>
+                                <Input placeholder="Your display name" className="pl-9" {...field} />
+                                </FormControl>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                       <FormField
+                        control={form.control}
+                        name="handle"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Handle</FormLabel>
+                            <div className="relative">
+                                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <FormControl>
+                                <Input placeholder="your_handle" className="pl-9" {...field} />
+                                </FormControl>
+                            </div>
+                            <FormDescription>
+                                {isHandleChecking && <span className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin"/> Checking...</span>}
+                                {debouncedHandle && !isHandleChecking && isHandleAvailable === true && <span className="text-xs text-green-500 flex items-center gap-2"><Check className="h-3 w-3"/> Available!</span>}
+                                {debouncedHandle && !isHandleChecking && isHandleAvailable === false && <span className="text-xs text-destructive flex items-center gap-2"><AlertCircle className="h-3 w-3"/> Not available.</span>}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div>
+                          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Email Address</label>
+                           <div className="relative mt-2">
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input value={user.email || ''} readOnly disabled className="pl-9" />
+                            </div>
+                          <p className="text-xs text-muted-foreground mt-2">Your email address cannot be changed.</p>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button type="submit" disabled={isSubmitting || isHandleChecking || !isHandleAvailable}>
+                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Save Changes
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+            <Separator className="my-12" />
+             <div>
+                <h2 className="text-2xl font-bold mb-4">My Contributions</h2>
+                <Card>
+                    <CardContent className="p-6">
+                        {isLoadingPosts ? (
+                             <div className="text-center text-muted-foreground py-8">
+                                <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                                <p className="mt-2">Loading your posts...</p>
+                            </div>
+                        ) : myPosts.length > 0 ? (
+                            <div className="space-y-4">
+                                {myPosts.map(post => (
+                                    <Card key={post.id} className="p-4 flex items-center justify-between">
+                                        <div className="flex-1 overflow-hidden">
+                                            <p className="font-semibold truncate">{post.headline}</p>
+                                            <p className="text-sm text-muted-foreground truncate">{post.content}</p>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Posted {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : ''}
+                                            </p>
+                                        </div>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon">
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                    <span className="sr-only">Delete post</span>
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This action cannot be undone. This will permanently delete your post from the feed.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDeletePost(post.id)}>Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center text-muted-foreground py-8">
+                                <p>You haven't made any posts yet.</p>
+                                <Button variant="link" asChild className="mt-2"><Link href="/feed">Start a conversation</Link></Button>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+      </main>
+    </div>
+  );
+}
