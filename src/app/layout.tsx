@@ -10,7 +10,7 @@ import { SiteBackgroundWrapper } from '@/components/site-background-wrapper';
 const siteConfig = {
   name: "Tech Ink",
   url: "https://tech-ink.vercel.app",
-  ogImage: "https://source.unsplash.com/random/1200x630?technology,futuristic,data",
+  ogImage: "https://res.cloudinary.com/dd1czj85j/image/upload/v1750851092/WhatsApp_Image_2025-06-23_at_11.34.37_c2bbc731_epfvrj.jpg",
   description: "An insight engine, not just a news site. We combine human curiosity with AI's analytical power to create a deeper understanding of technology. Explore trends, get personalized briefings, and join a community of builders.",
   author: "Bime",
 };
