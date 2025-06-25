@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { analyzePost } from "@/ai/flows/analyze-post-flow";
@@ -31,6 +31,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useSearchParams, useRouter } from 'next/navigation';
+import ReactMarkdown from "react-markdown";
 
 const BATCH_SIZE = 5;
 
@@ -53,7 +54,7 @@ type Comment = {
 
 const addPostFormSchema = z.object({
   headline: z.string().min(10, { message: "Headline must be at least 10 characters." }).max(100, { message: "Headline must be less than 100 characters." }),
-  content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(500, { message: "Content must be less than 500 characters." }),
+  content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(5000, { message: "Content must be less than 5000 characters." }),
   url: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
 });
 type AddPostFormValues = z.infer<typeof addPostFormSchema>;
@@ -136,6 +137,7 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
     
     const handleShare = async () => {
        if (user) { addPoints(5); toast({ title: "+5 Insight Points!", description: "You've earned points for sharing." }); }
+       if (typeof window === 'undefined') return;
        const shareUrl = `${window.location.origin}/feed?post=${item.id}`;
        if (navigator.share) {
            await navigator.share({ title: item.headline, text: item.content, url: shareUrl }).catch(error => console.error('Error sharing:', error));
@@ -189,7 +191,7 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                         </div>
                         <div onClick={() => onPostClick(item)} className="group cursor-pointer">
                             <h3 className="mt-3 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <p className="mt-1 text-foreground/90 whitespace-pre-line">{item.content}</p>
+                            <div className="mt-1 text-foreground/90 whitespace-pre-line"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
                         <div className="mt-4 flex items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
@@ -273,6 +275,7 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
     
     const handleShare = async () => {
         if (user) { addPoints(5); toast({ title: "+5 Insight Points!", description: "You've earned points for sharing." }); }
+        if (typeof window === 'undefined') return;
         const shareUrl = `${window.location.origin}/feed?post=${item.id}`;
         if (navigator.share) {
             await navigator.share({ title: item.headline, text: item.content, url: shareUrl }).catch(error => console.error('Error sharing:', error));
@@ -313,8 +316,8 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                     </Avatar>
                     <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold">{item.author}</span>
-                            <span className="text-muted-foreground">{item.handle}</span>
+                            <Link href={`/u/${item.handle.substring(1)}`} className="font-bold hover:underline">{item.author}</Link>
+                            <Link href={`/u/${item.handle.substring(1)}`} className="text-muted-foreground hover:underline">{item.handle}</Link>
                             <span className="text-muted-foreground hidden sm:inline">·</span>
                             <span className="text-muted-foreground">{displayTime}</span>
                         </div>
@@ -325,7 +328,7 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                                 </div>
                             )}
                             <h3 className="mt-4 text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <p className="mt-2 text-foreground/90 whitespace-pre-line">{item.content}</p>
+                            <div className="mt-2 text-foreground/90 whitespace-pre-line"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
                         <div className="mt-4 flex items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
@@ -605,7 +608,7 @@ function FeedPageComponent() {
             <DialogContent><DialogHeader><DialogTitle>Create a New Post</DialogTitle><DialogDescription>Share your latest thoughts and insights with the community.</DialogDescription></DialogHeader>
                  <Form {...addPostForm}><form onSubmit={addPostForm.handleSubmit(onAddPostSubmit)} className="space-y-4">
                         <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><FormLabel>Headline</FormLabel><FormControl><Input placeholder="e.g., My Thoughts on the Future of AI" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                        <FormField control={addPostForm.control} name="content" render={({ field }) => ( <FormItem><FormLabel>Content</FormLabel><FormControl><Textarea placeholder="Share your detailed thoughts here..." className="min-h-[160px]" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                        <FormField control={addPostForm.control} name="content" render={({ field }) => ( <FormItem><FormLabel>Content</FormLabel><FormControl><Textarea placeholder="Share your detailed thoughts here... Markdown is supported!" className="min-h-[200px]" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         <FormField control={addPostForm.control} name="url" render={({ field }) => ( <FormItem><FormLabel>Link (Optional)</FormLabel><FormControl><Input placeholder="https://example.com" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         <DialogFooter><Button type="button" variant="ghost" onClick={() => setIsAddPostOpen(false)}>Cancel</Button><Button type="submit" disabled={addPostForm.formState.isSubmitting}>{addPostForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Post</Button></DialogFooter>
                  </form></Form>
@@ -630,7 +633,7 @@ function FeedPageComponent() {
                                     </div>
                                 )}
                                 <div className="prose dark:prose-invert max-w-none whitespace-pre-line mt-4">
-                                    {activePost.content}
+                                    <ReactMarkdown>{activePost.content}</ReactMarkdown>
                                 </div>
                                 <Separator className="my-6" />
                                 <h3 className="text-lg font-semibold mb-4">Comments</h3>
@@ -710,3 +713,5 @@ export default function FeedPage() {
         </Suspense>
     )
 }
+
+    

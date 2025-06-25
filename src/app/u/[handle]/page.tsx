@@ -3,12 +3,11 @@
 
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db, initializationError } from '@/lib/firebase';
-import { notFound, useRouter, usePathname } from 'next/navigation';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Gem, Rss, Share2, Loader2, AlertTriangle } from 'lucide-react';
+import { Gem, Rss, Share2, Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
 import type { UserProfile } from '@/contexts/auth-context';
 import type { SocialFeedItem } from '@/ai/schemas/social-feed-item-schema';
 import { formatDistanceToNow } from 'date-fns';
@@ -16,6 +15,8 @@ import Link from 'next/link';
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { usePathname } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
 
 type UserData = UserProfile & {
     id: string;
@@ -26,13 +27,13 @@ type UserData = UserProfile & {
 
 type PostWithId = SocialFeedItem & { id: string; createdAt?: any };
 
-async function getUserData(handle: string): Promise<{user: UserData | null, posts: PostWithId[]}> {
-    if (initializationError || !db) return { user: null, posts: [] };
+async function getUserData(handle: string): Promise<{user: UserData | null, posts: PostWithId[], error?: string, indexLink?: string}> {
+    if (initializationError || !db) return { user: null, posts: [], error: "Firebase not initialized." };
     try {
         const usersRef = collection(db, 'users');
         const q = query(usersRef, where('handle', '==', `@${handle}`), limit(1));
         const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) return { user: null, posts: [] };
+        if (querySnapshot.empty) return { user: null, posts: [], error: "User not found." };
         
         const userDoc = querySnapshot.docs[0];
         const data = userDoc.data();
@@ -50,15 +51,19 @@ async function getUserData(handle: string): Promise<{user: UserData | null, post
         const userPosts = postsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PostWithId));
 
         return { user: userData, posts: userPosts };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error fetching user data:", error);
-        return { user: null, posts: [] };
+        if (error.code === 'failed-precondition') {
+             return { user: null, posts: [], error: "Query requires a database index.", indexLink: error.message.match(/https?:\/\/[^\s]+/)?.[0] || '' };
+        }
+        return { user: null, posts: [], error: "An unexpected error occurred while fetching profile data." };
     }
 }
 
 function ShareProfileButton({ handle }: { handle: string }) {
     const { toast } = useToast();
     const handleShare = async () => {
+        if (typeof window === 'undefined') return;
         const shareUrl = `${window.location.origin}/u/${handle}`;
         if (navigator.share) {
             await navigator.share({ title: `View ${handle}'s profile on Tech Ink`, url: shareUrl }).catch(error => console.error('Error sharing:', error));
@@ -74,33 +79,29 @@ function ShareProfileButton({ handle }: { handle: string }) {
     )
 }
 
-function UserProfileComponent({ params }: { params: { handle: string } }) {
+function UserProfileComponent({ handle }: { handle: string }) {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [userPosts, setUserPosts] = useState<PostWithId[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [indexLink, setIndexLink] = useState<string | undefined>();
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const { user, posts } = await getUserData(params.handle);
-            if (!user) {
-                setError("User not found.");
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            setError(null);
+            const { user, posts, error: fetchError, indexLink: fetchIndexLink } = await getUserData(handle);
+            if (fetchError) {
+                setError(fetchError);
+                setIndexLink(fetchIndexLink);
             } else {
                 setUserData(user);
                 setUserPosts(posts);
             }
-        } catch(e) {
-            setError("Could not load profile.");
-        } finally {
             setIsLoading(false);
-        }
-    }, [params.handle]);
-
-    useEffect(() => {
+        };
         fetchData();
-    }, [fetchData]);
+    }, [handle]);
 
     if (isLoading) {
         return (
@@ -110,22 +111,31 @@ function UserProfileComponent({ params }: { params: { handle: string } }) {
         )
     }
 
-    if (error) {
+    if (error || !userData) {
         return (
-            <div className="flex flex-col items-center justify-center text-center" style={{minHeight: 'calc(100vh - 200px)'}}>
+            <div className="flex flex-col items-center justify-center text-center p-4" style={{minHeight: 'calc(100vh - 200px)'}}>
                 <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-                <h2 className="text-2xl font-bold">Profile Not Found</h2>
-                <p className="text-muted-foreground">The user profile you are looking for does not exist.</p>
+                <h2 className="text-2xl font-bold">{error === 'User not found.' ? 'Profile Not Found' : 'Database Error'}</h2>
+                <p className="text-muted-foreground max-w-md mt-2">{error || "The user profile you are looking for does not exist."}</p>
+                {indexLink && (
+                    <Card className="mt-6 p-4 text-left text-sm bg-muted/50">
+                        <p className="font-bold">Admin Action Required:</p>
+                        <p className="mt-2">To fix this, you must create a database index in your Firebase project. This is a one-time setup.</p>
+                        <Button asChild className="mt-4 w-full">
+                            <a href={indexLink} target="_blank" rel="noopener noreferrer">
+                                Create Index in Firebase <ExternalLink className="ml-2 h-4 w-4" />
+                            </a>
+                        </Button>
+                    </Card>
+                )}
             </div>
         )
     }
 
-    if (!userData) return null; // Should be covered by error state
-
     return (
         <section className="container mx-auto max-w-4xl px-4 sm:px-6 py-12 md:py-16">
             <Card className="relative p-8 flex flex-col md:flex-row items-center gap-6 mb-12">
-                <ShareProfileButton handle={params.handle} />
+                <ShareProfileButton handle={handle} />
                 <Avatar className="h-24 w-24 border-4 border-primary">
                     <AvatarImage src={userData.avatar} alt={userData.displayName} />
                     <AvatarFallback>{userData.displayName.charAt(0)}</AvatarFallback>
@@ -153,21 +163,17 @@ function UserProfileComponent({ params }: { params: { handle: string } }) {
                 {userPosts.length > 0 ? (
                     userPosts.map(post => (
                         <Card key={post.id} className="p-6">
-                            <CardHeader className="p-0">
-                                {post.url && post.url !== '#' ? (
-                                    <a href={post.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
-                                        <CardTitle>{post.headline}</CardTitle>
-                                    </a>
-                                ) : (
-                                    <CardTitle>{post.headline}</CardTitle>
-                                )}
-                                <CardDescription className="pt-1">
-                                    Posted {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : 'recently'}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="p-0 pt-4">
-                                <p className="text-foreground/90 whitespace-pre-line">{post.content}</p>
-                            </CardContent>
+                             <Link href={`/feed?post=${post.id}`} className="block group">
+                                <CardHeader className="p-0">
+                                    <CardTitle className="group-hover:text-primary transition-colors">{post.headline}</CardTitle>
+                                    <CardDescription className="pt-1">
+                                        Posted {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : 'recently'}
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="p-0 pt-4">
+                                    <div className="text-foreground/90 whitespace-pre-line prose dark:prose-invert max-w-none"><ReactMarkdown>{post.content}</ReactMarkdown></div>
+                                </CardContent>
+                            </Link>
                         </Card>
                     ))
                 ) : (
@@ -182,9 +188,6 @@ function UserProfileComponent({ params }: { params: { handle: string } }) {
 
 export default function UserProfilePage({ params }: { params: { handle: string } }) {
     const pathname = usePathname();
-
-    // The key ensures the component re-mounts when the path changes,
-    // which is needed for client-side components that fetch data based on params.
     return (
         <div className="flex min-h-screen flex-col">
             <SiteHeader />
@@ -194,7 +197,7 @@ export default function UserProfilePage({ params }: { params: { handle: string }
                         <Loader2 className="h-12 w-12 animate-spin text-primary" />
                     </div>
                 }>
-                    <UserProfileComponent key={pathname} params={params} />
+                    <UserProfileComponent key={pathname} handle={params.handle} />
                 </Suspense>
             </main>
             <SiteFooter />
