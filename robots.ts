@@ -10,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
             disallow: ['/imam', '/briefing', '/settings'], 
         }
     ],
-    sitemap: 'https://tech-ink.web.app/sitemap.xml',
+    sitemap: 'https://tech-ink.vercel.app/sitemap.xml',
   }
 }

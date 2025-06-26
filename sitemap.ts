@@ -2,7 +2,7 @@
 import { MetadataRoute } from 'next'
  
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://tech-ink.web.app';
+  const baseUrl = 'https://tech-ink.vercel.app';
 
   // NOTE: For a production app, you would fetch dynamic routes (e.g., from Firestore)
   // and add them to this list. For now, we'll just include the main static pages.

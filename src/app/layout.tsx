@@ -56,10 +56,19 @@ export const metadata: Metadata = {
     creator: '@dev_bime',
   },
   icons: {
-    icon: siteConfig.ogImage,
-    shortcut: siteConfig.ogImage,
-    apple: siteConfig.ogImage,
-  }
+    icon: {
+      url: siteConfig.ogImage,
+      type: "image/jpeg",
+    },
+    shortcut: {
+      url: siteConfig.ogImage,
+      type: "image/jpeg",
+    },
+    apple: {
+      url: siteConfig.ogImage,
+      type: "image/jpeg",
+    },
+  },
 };
 
 
