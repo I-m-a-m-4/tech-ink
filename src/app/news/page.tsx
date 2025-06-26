@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Article } from "@/ai/flows/generate-articles-flow";
 import { startLoader } from "@/lib/loader-events";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 type ArticleWithId = Article & { id: string };
 
@@ -73,16 +74,22 @@ export default function NewsPage() {
                 </div>
 
                 {categories.length > 1 && (
-                    <div className="flex justify-center gap-2 flex-wrap mb-12">
-                        {categories.map(category => (
-                            <Button 
-                                key={category}
-                                variant={selectedCategory === category ? 'default' : 'outline'}
-                                onClick={() => setSelectedCategory(category)}
-                            >
-                                {category}
-                            </Button>
-                        ))}
+                     <div className="relative mb-12">
+                        <ScrollArea className="w-full whitespace-nowrap">
+                            <div className="flex justify-center gap-2 pb-4">
+                                {categories.map(category => (
+                                    <Button 
+                                        key={category}
+                                        variant={selectedCategory === category ? 'default' : 'outline'}
+                                        onClick={() => setSelectedCategory(category)}
+                                        className="shrink-0"
+                                    >
+                                        {category}
+                                    </Button>
+                                ))}
+                            </div>
+                            <ScrollBar orientation="horizontal" />
+                        </ScrollArea>
                     </div>
                 )}
 

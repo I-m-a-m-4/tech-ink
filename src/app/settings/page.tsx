@@ -16,7 +16,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Loader2, Gem, User as UserIcon, Mail, AtSign, Trash2 } from 'lucide-react';
+import { Loader2, PenLine, User as UserIcon, Mail, AtSign, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { type SocialFeedItem } from '@/ai/schemas/social-feed-item-schema';
 import { formatDistanceToNow } from 'date-fns';
@@ -167,10 +167,10 @@ export default function SettingsPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex items-center gap-3">
-                            <Gem className="h-6 w-6 text-primary" />
+                            <PenLine className="h-6 w-6 text-primary" />
                             <div>
                                 <p className="font-bold text-2xl">{profile?.points ?? 0}</p>
-                                <p className="text-sm text-muted-foreground">Insight Points</p>
+                                <p className="text-sm text-muted-foreground">Ink Points</p>
                             </div>
                         </div>
                     </CardContent>

@@ -8,6 +8,8 @@ import LeaderboardClientPage from './client-page';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 
+export const revalidate = 0; // Ensures fresh data on every request
+
 type UserData = UserProfile & {
     id: string;
     displayName: string;

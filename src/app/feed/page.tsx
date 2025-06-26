@@ -34,6 +34,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import ReactMarkdown from "react-markdown";
 
 const BATCH_SIZE = 5;
+const POST_CHARACTER_LIMIT = 1000;
+const TRUNCATE_LENGTH = 350;
 
 type SocialFeedItemWithId = SocialFeedItem & { 
     id: string;
@@ -54,7 +56,7 @@ type Comment = {
 
 const addPostFormSchema = z.object({
   headline: z.string().min(10, { message: "Headline must be at least 10 characters." }).max(100, { message: "Headline must be less than 100 characters." }),
-  content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(10000, { message: "Content must be less than 10,000 characters." }),
+  content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(POST_CHARACTER_LIMIT, { message: `Content must be less than ${POST_CHARACTER_LIMIT} characters.` }),
   url: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
   imageUrl: z.string().url({ message: "Please enter a valid image URL." }).optional().or(z.literal('')),
 });
@@ -70,6 +72,29 @@ const getDisplayTime = (item: SocialFeedItemWithId | Comment) => {
         return formatDistanceToNow(item.createdAt.toDate(), { addSuffix: true });
     }
     return 'Just now';
+};
+
+const ExpandableText = ({ text }: { text: string }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    
+    const textContainerClasses = "mt-1 text-foreground/90 whitespace-pre-line prose prose-sm sm:prose-base dark:prose-invert max-w-none break-words";
+    
+    if (text.length <= TRUNCATE_LENGTH) {
+        return <div className={textContainerClasses}><ReactMarkdown>{text}</ReactMarkdown></div>;
+    }
+
+    return (
+        <>
+            <div className={textContainerClasses}>
+                <ReactMarkdown>{isExpanded ? text : `${text.substring(0, TRUNCATE_LENGTH)}...`}</ReactMarkdown>
+            </div>
+            {!isExpanded && (
+                <Button variant="link" className="px-0 h-auto -mt-2 text-sm" onClick={(e) => { e.stopPropagation(); setIsExpanded(true); }}>
+                    Read More
+                </Button>
+            )}
+        </>
+    );
 };
 
 const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPostClick: (item: SocialFeedItemWithId) => void }) => {
@@ -167,13 +192,13 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                             <span className="text-muted-foreground">{displayTime}</span>
                         </div>
                         <div onClick={() => onPostClick(item)} className="group cursor-pointer">
-                            {item.imageUrl && (
+                            <h3 className="mt-3 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                            <ExpandableText text={item.content} />
+                             {item.imageUrl && (
                                 <div className="relative aspect-video w-full overflow-hidden rounded-lg mt-4">
                                     <Image src={item.imageUrl} alt={item.headline} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
                                 </div>
                             )}
-                            <h3 className="mt-3 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <div className="mt-1 text-foreground/90 whitespace-pre-line prose prose-sm sm:prose-base dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
@@ -310,13 +335,13 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                             <span className="text-muted-foreground">{displayTime}</span>
                         </div>
                         <div onClick={() => onPostClick(item)} className="group cursor-pointer">
-                            {item.imageUrl && (
+                            <h3 className="mt-4 text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                            <ExpandableText text={item.content} />
+                             {item.imageUrl && (
                                 <div className="relative aspect-video w-full overflow-hidden rounded-lg mt-4">
                                     <Image src={item.imageUrl} alt={item.headline} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
                                 </div>
                             )}
-                            <h3 className="mt-4 text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <div className="mt-2 text-foreground/90 whitespace-pre-line prose prose-sm sm:prose-base dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
@@ -375,6 +400,7 @@ function FeedPageComponent() {
 
   const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", url: "", imageUrl: "" } });
   const watchedImageUrl = addPostForm.watch('imageUrl');
+  const watchedContent = addPostForm.watch('content');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
@@ -647,7 +673,18 @@ function FeedPageComponent() {
             <DialogContent><DialogHeader><DialogTitle>Create a New Post</DialogTitle><DialogDescription>Share your latest thoughts and insights with the community.</DialogDescription></DialogHeader>
                  <Form {...addPostForm}><form onSubmit={addPostForm.handleSubmit(onAddPostSubmit)} className="space-y-4">
                         <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><FormLabel>Headline</FormLabel><FormControl><Input placeholder="e.g., My Thoughts on the Future of AI" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                        <FormField control={addPostForm.control} name="content" render={({ field }) => ( <FormItem><FormLabel>Content</FormLabel><FormControl><Textarea placeholder="Share your detailed thoughts here... Markdown is supported!" className="min-h-[200px]" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                        <FormField control={addPostForm.control} name="content" render={({ field }) => ( 
+                            <FormItem>
+                                <FormLabel>Content</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Share your detailed thoughts here... Markdown is supported!" className="min-h-[200px]" {...field} />
+                                </FormControl>
+                                <FormDescription className="text-right">
+                                    {(watchedContent?.length || 0)} / {POST_CHARACTER_LIMIT}
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem> 
+                        )}/>
                         <FormField control={addPostForm.control} name="url" render={({ field }) => ( <FormItem><FormLabel>Link (Optional)</FormLabel><FormControl><Input placeholder="https://example.com" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         <FormField control={addPostForm.control} name="imageUrl" render={({ field }) => ( 
                             <FormItem>
@@ -678,14 +715,14 @@ function FeedPageComponent() {
                         <Separator />
                         <div className="flex-1 overflow-hidden">
                             <ScrollArea className="h-full pr-4">
+                                 <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none whitespace-pre-line mt-4">
+                                    <ReactMarkdown>{activePost.content}</ReactMarkdown>
+                                </div>
                                 {activePost.imageUrl && (
                                     <div className="relative aspect-video w-full overflow-hidden rounded-lg my-4">
                                         <Image src={activePost.imageUrl} alt={activePost.headline} fill className="object-cover" />
                                     </div>
                                 )}
-                                <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none whitespace-pre-line mt-4">
-                                    <ReactMarkdown>{activePost.content}</ReactMarkdown>
-                                </div>
                                 <Separator className="my-6" />
                                 <h3 className="text-lg font-semibold mb-4">Comments</h3>
                                 {isCommentsLoading ? (
@@ -764,3 +801,5 @@ export default function FeedPage() {
         </Suspense>
     )
 }
+
+    
