@@ -1,5 +1,5 @@
 
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { type Article } from '@/ai/schemas/article-schema';
 import { notFound } from 'next/navigation';
@@ -10,10 +10,14 @@ import { Suspense } from 'react';
 import { type Metadata, type ResolvingMetadata } from 'next';
 import ArticleClientPage from './client-page';
 
-type ArticleWithId = Article & { id: string; createdAt?: any };
+// The createdAt property will be a string to be serializable for client components
+export type ArticleWithId = Omit<Article, 'createdAt'> & { 
+  id: string; 
+  createdAt?: string; 
+};
 
 const siteConfig = {
-  ogImage: "https://res.cloudinary.com/dd1czj85j/image/upload/v1750851092/WhatsApp_Image_2025-06-23_at_11.34.37_c2bbc731_epfvrj.jpg",
+  ogImage: "https://i.ibb.co/9vZd2pM/techink.jpg",
 };
 
 async function getArticle(id: string): Promise<ArticleWithId | null> {
@@ -21,7 +25,21 @@ async function getArticle(id: string): Promise<ArticleWithId | null> {
     if (!db) return null;
     const docRef = doc(db, "articles", id);
     const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as ArticleWithId : null;
+
+    if (!docSnap.exists()) {
+      return null;
+    }
+    
+    const data = docSnap.data();
+    const articleData: any = { id: docSnap.id, ...data };
+
+    // Convert Firestore Timestamp to a serializable ISO string BEFORE passing to client
+    if (data.createdAt && data.createdAt instanceof Timestamp) {
+      articleData.createdAt = data.createdAt.toDate().toISOString();
+    }
+
+    return articleData as ArticleWithId;
+
   } catch (error) {
     console.error("Error fetching article:", error);
     return null;

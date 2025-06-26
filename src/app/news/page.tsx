@@ -4,7 +4,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Newspaper } from "lucide-react";
+import { Loader2, Newspaper } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { NewsCube3d } from "@/components/news-cube-3d";
@@ -13,6 +13,7 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Article } from "@/ai/flows/generate-articles-flow";
+import { startLoader } from "@/lib/loader-events";
 
 type ArticleWithId = Article & { id: string };
 
@@ -65,7 +66,7 @@ export default function NewsPage() {
         <section className="container mx-auto px-4 sm:px-6 py-12 md:py-24">
             <div className="mx-auto max-w-3xl">
                 <div className="mx-auto mb-12 max-w-xl text-center">
-                    <h1 className="text-4xl font-black md:text-6xl animate-gradient">Latest In Tech</h1>
+                    <h1 className="text-4xl font-extrabold md:text-6xl animate-gradient">Latest In Tech</h1>
                     <p className="mt-4 text-lg text-muted-foreground">
                     Explore the latest articles and discussions from the Tech Ink community.
                     </p>
@@ -120,7 +121,7 @@ export default function NewsPage() {
                                         {cardContent}
                                     </a>
                                 ) : (
-                                    <Link href={`/news/${item.id}`} className={commonCardClasses}>
+                                    <Link href={`/news/${item.id}`} className={commonCardClasses} onClick={startLoader}>
                                       {cardContent}
                                     </Link>
                                 )}
@@ -143,7 +144,7 @@ export default function NewsPage() {
         </section>
         <section className="container mx-auto px-4 sm:px-6 py-12 md:py-24">
             <div className="mx-auto mb-12 max-w-2xl text-center">
-                <h2 className="text-4xl font-black">Global News Pulse</h2>
+                <h2 className="text-4xl font-extrabold">Global News Pulse</h2>
                 <p className="mt-4 text-lg text-muted-foreground">
                     A 3D view of the world of tech news.
                 </p>

@@ -10,8 +10,8 @@ import { Suspense } from 'react';
 
 const siteConfig = {
   name: "Tech Ink Insights",
-  url: "https://tech-ink.web.app",
-  ogImage: "https://res.cloudinary.com/dd1czj85j/image/upload/v1750851092/WhatsApp_Image_2025-06-23_at_11.34.37_c2bbc731_epfvrj.jpg",
+  url: "https://tech-ink.vercel.app",
+  ogImage: "https://i.ibb.co/9vZd2pM/techink.jpg",
   description: "An insight engine, not just a news site. We combine human curiosity with AI's analytical power to create a deeper understanding of technology. Explore trends, get personalized briefings, and join a community of builders.",
   author: "Bime",
 };
@@ -83,7 +83,7 @@ export default function RootLayout({
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased overflow-x-hidden">
         <AuthProvider>

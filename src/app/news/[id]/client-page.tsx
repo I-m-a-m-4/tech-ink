@@ -1,20 +1,19 @@
 
 "use client";
 
-import { type Article } from '@/ai/schemas/article-schema';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
-
-type ArticleWithId = Article & { id: string; createdAt?: any };
+import type { ArticleWithId } from './page';
 
 export default function ArticleClientPage({ article }: { article: ArticleWithId }) {
     const { toast } = useToast();
-    const publishDate = article.createdAt?.toDate() 
-        ? new Date(article.createdAt.toDate()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    
+    const publishDate = article.createdAt
+        ? new Date(article.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
         : 'Recently published';
 
     const handleShare = async () => {
