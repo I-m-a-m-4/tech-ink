@@ -75,96 +75,61 @@ export function SiteHeader() {
     await signOut();
     router.push('/');
   }
-
-  const UserInfo = ({isMobile = false}) => {
-    if (!user) {
-        return (
-            <div className={cn("gap-2", isMobile ? "grid" : "flex")}>
-                <Button variant={isMobile ? "outline" : "ghost"} asChild onClick={() => isMobile && setIsMobileSheetOpen(false)}>
-                    <Link href="/login" onClick={() => pathname !== '/login' && startLoader()}>Login</Link>
-                </Button>
-                <Button asChild onClick={() => isMobile && setIsMobileSheetOpen(false)}>
-                    <Link href="/signup" onClick={() => pathname !== '/signup' && startLoader()}>Sign Up</Link>
-                </Button>
-            </div>
-        )
-    }
-
-    const dropdownTrigger = (
-      <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-        <Avatar className="h-9 w-9">
-          <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "User"} />
-          <AvatarFallback>{user.email?.[0].toUpperCase() ?? 'U'}</AvatarFallback>
-        </Avatar>
-      </Button>
-    );
-
-    const dropdownContent = (
-      <>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">
-              {user.displayName ?? 'Welcome'}
-            </p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
-            </p>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-            <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}>
-                <Icons.cog className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-            </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSignOut}>
-          <Icons.logout className="mr-2 h-4 w-4" />
-          <span>Log out</span>
-        </DropdownMenuItem>
-      </>
-    );
-
-    if (isMobile) {
-        return (
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
+  
+  const UserActions = () => {
+      if (!user) {
+          return (
+               <div className="flex items-center gap-2">
+                    <Button variant="ghost" asChild>
+                        <Link href="/login" onClick={() => pathname !== '/login' && startLoader()}>Login</Link>
+                    </Button>
+                    <Button asChild>
+                        <Link href="/signup" onClick={() => pathname !== '/signup' && startLoader()}>Sign Up</Link>
+                    </Button>
+                </div>
+          )
+      }
+      return (
+           <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <Icons.gem className="h-4 w-4" />
+                <span>{profile?.points ?? 0}</span>
+                </div>
+                <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                     <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                        <Avatar className="h-9 w-9">
                         <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "User"} />
                         <AvatarFallback>{user.email?.[0].toUpperCase() ?? 'U'}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                        <p className="text-sm font-medium leading-none">{user.displayName ?? 'Welcome'}</p>
-                        <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                        </Avatar>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                        {user.displayName ?? 'Welcome'}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                        {user.email}
+                        </p>
                     </div>
-                </div>
-                <div className="flex items-center gap-2 text-lg font-semibold text-primary p-4 rounded-lg bg-muted">
-                    <Icons.gem className="h-5 w-5" />
-                    <span>{profile?.points ?? 0} Insight Points</span>
-                </div>
-                <SheetClose asChild>
-                    <Button onClick={handleSignOut} variant="outline" className="w-full">Log out</Button>
-                </SheetClose>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                        <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}>
+                            <Icons.cog className="mr-2 h-4 w-4" />
+                            <span>Settings</span>
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleSignOut}>
+                    <Icons.logout className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+                </DropdownMenu>
             </div>
-        )
-    }
-
-    return (
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-          <Icons.gem className="h-4 w-4" />
-          <span>{profile?.points ?? 0}</span>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            {dropdownTrigger}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            {dropdownContent}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    );
+      )
   }
 
   return (
@@ -182,8 +147,9 @@ export function SiteHeader() {
 
         <div className="flex flex-1 justify-end items-center gap-2">
             <div className="hidden md:flex items-center gap-2">
+              <UserActions />
+              <Separator orientation="vertical" className="h-6" />
               <BackgroundSwitcher />
-              <UserInfo />
             </div>
 
             <div className="flex md:hidden">
@@ -205,7 +171,36 @@ export function SiteHeader() {
                   </nav>
                   <Separator />
                    <div className="p-4">
-                     <UserInfo isMobile={true}/>
+                     {user ? (
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                    <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "User"} />
+                                    <AvatarFallback>{user.email?.[0].toUpperCase() ?? 'U'}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex flex-col">
+                                    <p className="text-sm font-medium leading-none">{user.displayName ?? 'Welcome'}</p>
+                                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-lg font-semibold text-primary p-4 rounded-lg bg-muted">
+                                <Icons.gem className="h-5 w-5" />
+                                <span>{profile?.points ?? 0} Insight Points</span>
+                            </div>
+                             <SheetClose asChild>
+                                <Button onClick={handleSignOut} variant="outline" className="w-full">Log out</Button>
+                            </SheetClose>
+                        </div>
+                     ) : (
+                        <div className="grid gap-2">
+                            <SheetClose asChild>
+                                <Button variant="outline" asChild><Link href="/login">Login</Link></Button>
+                            </SheetClose>
+                             <SheetClose asChild>
+                                <Button asChild><Link href="/signup">Sign Up</Link></Button>
+                            </SheetClose>
+                        </div>
+                     )}
                     </div>
                     <div className="mt-auto flex flex-col items-center gap-4 p-6 border-t">
                         <SheetClose asChild>

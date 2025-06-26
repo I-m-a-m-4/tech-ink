@@ -54,7 +54,7 @@ type Comment = {
 
 const addPostFormSchema = z.object({
   headline: z.string().min(10, { message: "Headline must be at least 10 characters." }).max(100, { message: "Headline must be less than 100 characters." }),
-  content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(5000, { message: "Content must be less than 5000 characters." }),
+  content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(10000, { message: "Content must be less than 10,000 characters." }),
   url: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
 });
 type AddPostFormValues = z.infer<typeof addPostFormSchema>;
@@ -139,8 +139,9 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
        if (user) { addPoints(5); toast({ title: "+5 Insight Points!", description: "You've earned points for sharing." }); }
        if (typeof window === 'undefined') return;
        const shareUrl = `${window.location.origin}/feed?post=${item.id}`;
+       const shareText = `${item.headline} - ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
        if (navigator.share) {
-           await navigator.share({ title: item.headline, text: item.content, url: shareUrl }).catch(error => console.error('Error sharing:', error));
+           await navigator.share({ title: item.headline, text: shareText, url: shareUrl }).catch(error => console.error('Error sharing:', error));
        } else {
            navigator.clipboard.writeText(shareUrl);
            toast({ title: "Link Copied!", description: "A link to the post has been copied to your clipboard." });
@@ -277,8 +278,9 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
         if (user) { addPoints(5); toast({ title: "+5 Insight Points!", description: "You've earned points for sharing." }); }
         if (typeof window === 'undefined') return;
         const shareUrl = `${window.location.origin}/feed?post=${item.id}`;
+        const shareText = `${item.headline} - ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
         if (navigator.share) {
-            await navigator.share({ title: item.headline, text: item.content, url: shareUrl }).catch(error => console.error('Error sharing:', error));
+            await navigator.share({ title: item.headline, text: shareText, url: shareUrl }).catch(error => console.error('Error sharing:', error));
         } else {
             navigator.clipboard.writeText(shareUrl);
             toast({ title: "Link Copied!", description: "A link to the post has been copied to your clipboard." });
@@ -570,7 +572,7 @@ function FeedPageComponent() {
       <main className="flex-1">
         <section className="container mx-auto px-4 sm:px-6 py-12 md:py-16">
           <div className="mx-auto max-w-6xl">
-            <div className="mx-auto mb-12 max-w-xl text-center"><h1 className="text-4xl font-black md:text-6xl animate-gradient">Live Tech Feed</h1><p className="mt-4 text-lg text-muted-foreground">A curated feed of the latest buzz from across the tech world, managed by our team.</p><Button onClick={() => fetchFeed(true)} disabled={isLoading} className="mt-6"><RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />Refresh Feed</Button></div>
+            <div className="mx-auto mb-12 max-w-xl text-center"><h1 className="text-4xl font-extrabold md:text-6xl animate-gradient">Live Tech Feed</h1><p className="mt-4 text-lg text-muted-foreground">A curated feed of the latest buzz from across the tech world, managed by our team.</p><Button onClick={() => fetchFeed(true)} disabled={isLoading} className="mt-6"><RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />Refresh Feed</Button></div>
             <div className="flex flex-col gap-8">
               {pinnedTopic && <PinnedTopicCard item={pinnedTopic} onPostClick={handleOpenPostDetail} />}
               {visibleFeedItems.map((item, index) => ( <div ref={visibleFeedItems.length === index + 1 ? lastItemElementRef : null} key={item.id}><FeedItemCard item={item} onPostClick={handleOpenPostDetail} /></div> ))}
@@ -599,7 +601,7 @@ function FeedPageComponent() {
             </section>
         )}
         
-        <section className="container mx-auto px-4 sm:px-6 py-12 md:py-24"><div className="mx-auto mb-12 max-w-2xl text-center"><h2 className="text-4xl font-black">Social Pulse</h2><p className="mt-4 text-lg text-muted-foreground">A 3D view of the social sphere.</p></div><SocialCube3d /></section>
+        <section className="container mx-auto px-4 sm:px-6 py-12 md:py-24"><div className="mx-auto mb-12 max-w-2xl text-center"><h2 className="text-4xl font-extrabold">Social Pulse</h2><p className="mt-4 text-lg text-muted-foreground">A 3D view of the social sphere.</p></div><SocialCube3d /></section>
       </main>
 
        {user && (

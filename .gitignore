@@ -36,6 +36,7 @@ pnpm-debug.log*
 # vercel
 .vercel
 .firebase
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

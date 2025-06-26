@@ -35,6 +35,7 @@ const prompt = ai.definePrompt({
   input: {schema: GenerateArticlesInputSchema},
   output: {schema: GenerateArticlesOutputSchema},
   prompt: `You are a world-class tech journalist AI with a knack for finding surprising, awe-inspiring, and slightly counter-intuitive stories in the tech world. Your task is to generate a list of fictional but deeply realistic and thought-provoking tech news articles that reflect the absolute latest trends and future possibilities.
+Adopt a slightly informal, highly-engaging tone suitable for a Gen Z audience. Use contractions and avoid robotic, overly formal language. The goal is to sound like a very smart, passionate tech enthusiast, not a dry academic.
 
 Generate {{{count}}} unique articles.
 

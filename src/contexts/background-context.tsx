@@ -12,8 +12,8 @@ interface BackgroundContextType {
 
 const BackgroundContext = createContext<BackgroundContextType | undefined>(undefined);
 
-export const BackgroundProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [background, setBackgroundState] = useState<BackgroundType>('starfield');
+export const BackgroundProvider: React.FC<{ children: React.ReactNode; defaultBackground?: BackgroundType; }> = ({ children, defaultBackground = 'grid' }) => {
+  const [background, setBackgroundState] = useState<BackgroundType>(defaultBackground);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -22,9 +22,9 @@ export const BackgroundProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (storedBackground && ['starfield', 'grid', 'none', 'aurora'].includes(storedBackground)) {
       setBackgroundState(storedBackground);
     } else {
-        setBackgroundState('starfield'); // Default value
+        setBackgroundState(defaultBackground); // Set default from props
     }
-  }, []);
+  }, [defaultBackground]);
 
   const setBackground = (newBackground: BackgroundType) => {
     setBackgroundState(newBackground);

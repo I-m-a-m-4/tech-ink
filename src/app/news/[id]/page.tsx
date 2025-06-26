@@ -16,10 +16,6 @@ export type ArticleWithId = Omit<Article, 'createdAt'> & {
   createdAt?: string; 
 };
 
-const siteConfig = {
-  ogImage: "https://i.ibb.co/9vZd2pM/techink.jpg",
-};
-
 async function getArticle(id: string): Promise<ArticleWithId | null> {
   try {
     if (!db) return null;
@@ -49,15 +45,20 @@ async function getArticle(id: string): Promise<ArticleWithId | null> {
 export async function generateMetadata({ params }: { params: { id: string } }, parent: ResolvingMetadata): Promise<Metadata> {
   const id = params.id;
   const article = await getArticle(id);
-  const previousImages = (await parent).openGraph?.images || [];
-
+  
   if (!article) {
     return {
       title: 'Article Not Found',
     }
   }
+
+  // Get parent metadata to access the default image
+  const parentMetadata = await parent;
+  const defaultOgImage = parentMetadata.openGraph?.images || [];
   
-  const ogImage = article.imageUrl ? [ { url: article.imageUrl, width: 800, height: 400, alt: article.title } ] : [ { url: siteConfig.ogImage, width: 1200, height: 630, alt: "Tech Ink Insights" } ];
+  const ogImage = article.imageUrl 
+    ? [{ url: article.imageUrl, width: 800, height: 400, alt: article.title }]
+    : defaultOgImage;
 
   return {
     title: article.title,
@@ -65,7 +66,7 @@ export async function generateMetadata({ params }: { params: { id: string } }, p
     openGraph: {
       title: article.title,
       description: article.description,
-      images: [...ogImage, ...previousImages],
+      images: ogImage, // This correctly replaces the parent images
     },
     twitter: {
       card: 'summary_large_image',

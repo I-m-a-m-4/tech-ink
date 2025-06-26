@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock } from 'lucide-react';
+import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import type { BackgroundType } from '@/contexts/background-context';
 
 const IMGBB_API_KEY = (process.env.NEXT_PUBLIC_IMGBB_API_KEY || "").trim();
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
@@ -1129,6 +1130,109 @@ const TimelinesManager = () => {
     );
 };
 
+// --- Site Settings Manager Component ---
+const SiteSettingsManager = () => {
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const form = useForm<{ defaultBackground: BackgroundType }>();
+    const backgroundOptions: { value: BackgroundType; label: string }[] = [
+        { value: 'grid', label: 'Grid' },
+        { value: 'starfield', label: 'Starfield' },
+        { value: 'aurora', label: 'Glow Mode' },
+        { value: 'none', label: 'Plain' },
+    ];
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            if (!db) return;
+            setIsLoading(true);
+            try {
+                const settingsRef = doc(db, 'settings', 'site_config');
+                const docSnap = await getDoc(settingsRef);
+                if (docSnap.exists()) {
+                    form.setValue('defaultBackground', docSnap.data().defaultBackground);
+                } else {
+                    form.setValue('defaultBackground', 'grid'); // Default if not set
+                }
+            } catch (error) {
+                toast({ variant: "destructive", title: "Failed to load site settings." });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchSettings();
+    }, [form, toast]);
+
+    const onSubmit: SubmitHandler<{ defaultBackground: BackgroundType }> = async (data) => {
+        if (!db) return;
+        setIsSubmitting(true);
+        try {
+            const settingsRef = doc(db, 'settings', 'site_config');
+            await setDoc(settingsRef, data, { merge: true });
+            toast({ title: "Success", description: "Site settings updated." });
+        } catch (error) {
+            toast({ variant: "destructive", title: "Failed to save settings." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Site-wide Settings</CardTitle>
+                <CardDescription>
+                    Control the default appearance for all new visitors to your site.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                ) : (
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="defaultBackground"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Default Background Style</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a default background" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {backgroundOptions.map(opt => (
+                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormDescription>
+                                            This is the background new visitors will see. Returning visitors' choices will override this.
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="flex justify-end">
+                                <Button type="submit" disabled={isSubmitting}>
+                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Save Settings
+                                </Button>
+                            </div>
+                        </form>
+                    </Form>
+                )}
+            </CardContent>
+        </Card>
+    )
+}
+
 const AdminDashboard = () => (
     <main className="container mx-auto px-4 py-12 sm:px-6">
         <div className="mb-8">
@@ -1141,6 +1245,7 @@ const AdminDashboard = () => (
                 <TabsTrigger value="insights">Insights</TabsTrigger>
                 <TabsTrigger value="feed">Social Feed</TabsTrigger>
                 <TabsTrigger value="timelines">Timelines</TabsTrigger>
+                <TabsTrigger value="settings">Site Settings</TabsTrigger>
             </TabsList>
             <TabsContent value="news" className="py-6">
                 <NewsManager />
@@ -1153,6 +1258,9 @@ const AdminDashboard = () => (
             </TabsContent>
             <TabsContent value="timelines" className="py-6">
                 <TimelinesManager />
+            </TabsContent>
+             <TabsContent value="settings" className="py-6">
+                <SiteSettingsManager />
             </TabsContent>
         </Tabs>
     </main>
@@ -1226,7 +1334,6 @@ export default function AdminPage() {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // The onAuthStateChanged listener in useAuth will handle the state update.
       if (userCredential.user.email?.toLowerCase() !== ADMIN_EMAIL) {
         setAuthError("This user is not an administrator.");
         await signOut();

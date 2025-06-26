@@ -30,6 +30,7 @@ const prompt = ai.definePrompt({
   input: {schema: GenerateFeedInputSchema},
   output: {schema: GenerateFeedOutputSchema},
   prompt: `You are a social media content aggregator AI. Your task is to generate a list of fictional but realistic social media posts from various platforms like Twitter, YouTube, and Instagram. The topics should be related to the latest in technology, including AI, quantum computing, Web3, hardware, and developer tools.
+Adopt a slightly informal, highly-engaging tone suitable for a Gen Z audience. Use contractions and avoid robotic, overly formal language. The goal is to sound like a very smart, passionate tech enthusiast, not a dry academic.
 
 Generate {{{count}}} unique social media posts.
 

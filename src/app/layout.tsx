@@ -7,11 +7,12 @@ import { PageLoader } from '@/components/page-loader';
 import { BackgroundProvider } from '@/contexts/background-context';
 import { SiteBackgroundWrapper } from '@/components/site-background-wrapper';
 import { Suspense } from 'react';
+import { getSiteSettings } from '@/lib/settings';
 
 const siteConfig = {
   name: "Tech Ink Insights",
   url: "https://tech-ink.vercel.app",
-  ogImage: "https://i.ibb.co/9vZd2pM/techink.jpg",
+  ogImage: "https://res.cloudinary.com/dd1czj85j/image/upload/v1750851092/WhatsApp_Image_2025-06-23_at_11.34.37_c2bbc731_epfvrj.jpg",
   description: "An insight engine, not just a news site. We combine human curiosity with AI's analytical power to create a deeper understanding of technology. Explore trends, get personalized briefings, and join a community of builders.",
   author: "Bime",
 };
@@ -62,7 +63,7 @@ export const metadata: Metadata = {
 };
 
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -73,6 +74,8 @@ export default function RootLayout({
     name: siteConfig.name,
     url: siteConfig.url,
   };
+
+  const siteSettings = await getSiteSettings();
   
   return (
     <html lang="en" className="dark">
@@ -87,7 +90,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased overflow-x-hidden">
         <AuthProvider>
-          <BackgroundProvider>
+          <BackgroundProvider defaultBackground={siteSettings.defaultBackground}>
             <SiteBackgroundWrapper>
               <Suspense fallback={null}>
                 <PageLoader />

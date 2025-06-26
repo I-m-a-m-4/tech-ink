@@ -43,7 +43,10 @@ const prompt = ai.definePrompt({
   name: 'generateInsightsPrompt',
   input: {schema: GenerateInsightsInputSchema},
   output: {schema: GenerateInsightsOutputSchema},
-  prompt: `You are a world-class tech market analyst AI. Your task is to generate a series of data-driven insights based on fictional, recent developments in the technology sector. Your insights should be knowledgeable, spark innovation, and make the user feel smarter. Generate {{{count}}} unique insights.
+  prompt: `You are a world-class tech market analyst AI. Your task is to generate a series of data-driven insights based on fictional, recent developments in the technology sector. Your insights should be knowledgeable, spark innovation, and make the user feel smarter.
+Adopt a slightly informal, highly-engaging tone suitable for a Gen Z audience. Use contractions and avoid robotic, overly formal language. The goal is to sound like a very smart, passionate tech enthusiast, not a dry academic.
+
+Generate {{{count}}} unique insights.
 
 For each insight, you must provide:
 1.  A 'type': either 'bar', 'line', 'area', or 'quote'.

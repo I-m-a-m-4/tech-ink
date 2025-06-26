@@ -9,9 +9,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Icons } from "./icons";
 
 const backgroundOptions: { value: BackgroundType; label: string }[] = [
-  { value: 'starfield', label: 'Starfield' },
   { value: 'grid', label: 'Grid' },
-  { value: 'aurora', label: 'Aurora' },
+  { value: 'starfield', label: 'Starfield' },
+  { value: 'aurora', label: 'Glow Mode' },
   { value: 'none', label: 'Plain' },
 ];
 
