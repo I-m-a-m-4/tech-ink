@@ -2,7 +2,7 @@
 import { MetadataRoute } from 'next'
  
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://tech-ink.vercel.app';
+  const baseUrl = 'https://tech-ink.web.app';
 
   // NOTE: For a production app, you would fetch dynamic routes (e.g., from Firestore)
   // and add them to this list. For now, we'll just include the main static pages.
@@ -38,6 +38,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${baseUrl}/leaderboard`,
       lastModified: new Date(),
       changeFrequency: 'daily',
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/analysis`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
       priority: 0.7,
     },
     {

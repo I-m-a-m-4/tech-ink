@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { type SocialFeedItem } from "@/ai/schemas/social-feed-item-schema";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText } from "lucide-react";
+import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SocialCube3d } from "@/components/social-cube-3d";
 import { SiteHeader } from "@/components/site-header";
@@ -56,6 +56,7 @@ const addPostFormSchema = z.object({
   headline: z.string().min(10, { message: "Headline must be at least 10 characters." }).max(100, { message: "Headline must be less than 100 characters." }),
   content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(10000, { message: "Content must be less than 10,000 characters." }),
   url: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
+  imageUrl: z.string().url({ message: "Please enter a valid image URL." }).optional().or(z.literal('')),
 });
 type AddPostFormValues = z.infer<typeof addPostFormSchema>;
 
@@ -75,7 +76,6 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
     const { toast } = useToast();
     const { user, addPoints, likedPosts, addLike, removeLike } = useAuth();
     const [likeCount, setLikeCount] = useState(item.likes);
-    const [viewCount, setViewCount] = useState(item.views || 0);
 
     const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
     const [analysisContent, setAnalysisContent] = useState('');
@@ -85,42 +85,17 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
     const displayTime = getDisplayTime(item);
     const isLiked = likedPosts.has(item.id);
 
-    useEffect(() => {
-        const cardElement = cardRef.current;
-        if (!cardElement || !db) return;
-
-        const observer = new IntersectionObserver(
-            async ([entry]) => {
-                if (entry.isIntersecting) {
-                    const viewedKey = `viewed_${item.id}`;
-                    if (!sessionStorage.getItem(viewedKey)) {
-                        sessionStorage.setItem(viewedKey, 'true');
-                        setViewCount(v => v + 1);
-                        const itemRef = doc(db, 'feedItems', item.id);
-                        try {
-                            await updateDoc(itemRef, { views: increment(1) });
-                        } catch (error) {
-                            console.error("Failed to increment view count:", error);
-                            setViewCount(v => v - 1);
-                        }
-                    }
-                    observer.disconnect();
-                }
-            },
-            { threshold: 0.5 }
-        );
-        observer.observe(cardElement);
-        return () => { if (cardElement) observer.unobserve(cardElement) };
-    }, [item.id]);
-
     const handleLike = async () => {
         if (!user) {
             toast({ variant: "destructive", title: "Login Required", description: "You must be logged in to like posts." });
             return;
         }
 
+        const originalIsLiked = isLiked;
+        const originalLikeCount = likeCount;
+
         try {
-            if (isLiked) {
+            if (originalIsLiked) {
                 setLikeCount(c => c - 1);
                 await removeLike(item.id, 'feedItems');
             } else {
@@ -130,6 +105,7 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                 toast({ title: "+1 Insight Point!", description: "You've earned a point for engaging with the community." });
             }
         } catch (error) {
+             setLikeCount(originalLikeCount);
              toast({ variant: "destructive", title: "Something went wrong", description: "Could not update likes. Please try again." });
              console.error("Like error:", error);
         }
@@ -191,8 +167,13 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                             <span className="text-muted-foreground">{displayTime}</span>
                         </div>
                         <div onClick={() => onPostClick(item)} className="group cursor-pointer">
+                            {item.imageUrl && (
+                                <div className="relative aspect-video w-full overflow-hidden rounded-lg mt-4">
+                                    <Image src={item.imageUrl} alt={item.headline} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                                </div>
+                            )}
                             <h3 className="mt-3 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <div className="mt-1 text-foreground/90 whitespace-pre-line prose dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
+                            <div className="mt-1 text-foreground/90 whitespace-pre-line prose prose-sm sm:prose-base dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
@@ -211,10 +192,10 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                                 <Bot className="h-4 w-4" />
                                 <span className="hidden sm:inline">Analyze</span>
                             </Button>
-                             {user && user.uid === item.userId && (
+                             {user && user.uid === item.userId && item.views !== undefined && (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <Eye className="h-4 w-4" />
-                                    <span>{viewCount.toLocaleString()} views</span>
+                                    <span>{item.views.toLocaleString()} views</span>
                                 </div>
                             )}
                             <div className="flex-grow" />
@@ -259,8 +240,12 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
 
     const handleLike = async () => {
         if (!user) { toast({ variant: "destructive", title: "Login Required", description: "You must be logged in to like posts." }); return; }
+        
+        const originalIsLiked = isLiked;
+        const originalLikeCount = likeCount;
+
         try {
-            if (isLiked) {
+            if (originalIsLiked) {
                 setLikeCount(c => c - 1);
                 await removeLike(item.id, 'dailyTopics');
             } else {
@@ -270,6 +255,7 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                 toast({ title: "+1 Insight Point!", description: "You've earned a point for engaging with the community." });
             }
         } catch (error) {
+             setLikeCount(originalLikeCount);
              toast({ variant: "destructive", title: "Something went wrong", description: "Could not update likes. Please try again." });
         }
     };
@@ -330,7 +316,7 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                                 </div>
                             )}
                             <h3 className="mt-4 text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <div className="mt-2 text-foreground/90 whitespace-pre-line prose dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
+                            <div className="mt-2 text-foreground/90 whitespace-pre-line prose prose-sm sm:prose-base dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
@@ -372,6 +358,7 @@ function FeedPageComponent() {
   const [visibleFeedItems, setVisibleFeedItems] = useState<SocialFeedItemWithId[]>([]);
   const [pinnedTopic, setPinnedTopic] = useState<SocialFeedItemWithId | null>(null);
   const [topicHistory, setTopicHistory] = useState<SocialFeedItemWithId[]>([]);
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [isAddPostOpen, setIsAddPostOpen] = useState(false);
@@ -386,10 +373,29 @@ function FeedPageComponent() {
   const [isCommentsLoading, setIsCommentsLoading] = useState(false);
   const commentForm = useForm<CommentFormValues>({ resolver: zodResolver(commentFormSchema), defaultValues: { commentText: "" } });
 
-  const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", url: "" } });
+  const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", url: "", imageUrl: "" } });
+  const watchedImageUrl = addPostForm.watch('imageUrl');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  useEffect(() => {
+    const input = watchedImageUrl || '';
+    const srcRegex = /<img[^>]+src="([^">]+)"/;
+    const match = input.match(srcRegex);
+    const potentialUrl = match ? match[1] : input;
+
+    try {
+        new URL(potentialUrl);
+        setPreviewUrl(potentialUrl);
+        if (match) {
+            addPostForm.setValue('imageUrl', potentialUrl, { shouldValidate: true });
+        }
+    } catch (e) {
+        setPreviewUrl(null);
+    }
+  }, [watchedImageUrl, addPostForm]);
 
   const handleOpenPostDetail = useCallback(async (post: SocialFeedItemWithId) => {
     setActivePost(post);
@@ -426,15 +432,23 @@ function FeedPageComponent() {
         const [dailyTopicsSnapshot, feedItemsSnapshot] = await Promise.all([getDocs(dailyTopicsQuery), getDocs(feedItemsQuery)]);
         
         const dailyTopicsList = dailyTopicsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), comments: doc.data().comments || 0 } as SocialFeedItemWithId));
+        let currentPinnedTopic: SocialFeedItemWithId | null = null;
         if (dailyTopicsList.length > 0) {
-            setPinnedTopic(dailyTopicsList[0]);
+            currentPinnedTopic = dailyTopicsList[0];
+            setPinnedTopic(currentPinnedTopic);
             setTopicHistory(dailyTopicsList.slice(1));
         } else {
             setPinnedTopic(null);
             setTopicHistory([]);
         }
 
-        const feedItemsList = feedItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId));
+        let feedItemsList = feedItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId));
+        
+        // Prevent pinned topic from appearing in the main feed
+        if (currentPinnedTopic) {
+            feedItemsList = feedItemsList.filter(item => item.id !== currentPinnedTopic!.id);
+        }
+
         setAllFeedItems(feedItemsList);
         setVisibleFeedItems(feedItemsList.slice(0, BATCH_SIZE));
         setHasMore(feedItemsList.length > BATCH_SIZE);
@@ -486,7 +500,9 @@ function FeedPageComponent() {
             handle: profile.handle,
             avatar: user.photoURL || `https://source.unsplash.com/random/100x100?portrait,user`,
             time: "Just now", platform: "TechInk", headline: values.headline, content: values.content,
-            url: values.url || "#", likes: 0, comments: 0, views: 0, createdAt: serverTimestamp(), userId: user.uid,
+            url: values.url || "#", 
+            imageUrl: values.imageUrl || null,
+            likes: 0, comments: 0, views: 0, createdAt: serverTimestamp(), userId: user.uid,
         });
         toast({ title: "Post created!", description: "Your post is now live on the feed." });
         addPoints(25);
@@ -566,6 +582,10 @@ function FeedPageComponent() {
         } catch (error) { toast({ variant: "destructive", title: "Failed to post comment" }); }
     };
 
+    const filteredTopicHistory = topicHistory.filter(topic => 
+        topic.headline.toLowerCase().includes(historySearchTerm.toLowerCase())
+    );
+
     return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
@@ -589,12 +609,29 @@ function FeedPageComponent() {
                     <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value="item-1">
                             <AccordionTrigger><h2 className="text-2xl font-bold">Past Deep Dives</h2></AccordionTrigger>
-                            <AccordionContent><div className="space-y-4 pt-4">{topicHistory.map(topic => (
-                                <Card key={topic.id} className="p-4 flex justify-between items-center"><div className="flex-1 mr-4">
-                                    <h3 className="font-semibold truncate">{topic.headline}</h3>
-                                    <p className="text-sm text-muted-foreground">{getDisplayTime(topic)}</p>
-                                </div><Button variant="ghost" onClick={() => handleOpenPostDetail(topic)}>Read More <FileText className="ml-2 h-4 w-4" /></Button></Card>
-                            ))}</div></AccordionContent>
+                            <AccordionContent>
+                                <div className="space-y-4 pt-4">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input 
+                                            placeholder="Search past topics..."
+                                            value={historySearchTerm}
+                                            onChange={(e) => setHistorySearchTerm(e.target.value)}
+                                            className="pl-9"
+                                        />
+                                    </div>
+                                    {filteredTopicHistory.length > 0 ? (
+                                        filteredTopicHistory.map(topic => (
+                                            <Card key={topic.id} className="p-4 flex justify-between items-center"><div className="flex-1 mr-4">
+                                                <h3 className="font-semibold truncate">{topic.headline}</h3>
+                                                <p className="text-sm text-muted-foreground">{getDisplayTime(topic)}</p>
+                                            </div><Button variant="ghost" onClick={() => handleOpenPostDetail(topic)}>Read More <FileText className="ml-2 h-4 w-4" /></Button></Card>
+                                        ))
+                                    ) : (
+                                        <p className="text-muted-foreground text-center py-4">No topics found matching your search.</p>
+                                    )}
+                                </div>
+                            </AccordionContent>
                         </AccordionItem>
                     </Accordion>
                 </div>
@@ -612,6 +649,18 @@ function FeedPageComponent() {
                         <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><FormLabel>Headline</FormLabel><FormControl><Input placeholder="e.g., My Thoughts on the Future of AI" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         <FormField control={addPostForm.control} name="content" render={({ field }) => ( <FormItem><FormLabel>Content</FormLabel><FormControl><Textarea placeholder="Share your detailed thoughts here... Markdown is supported!" className="min-h-[200px]" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                         <FormField control={addPostForm.control} name="url" render={({ field }) => ( <FormItem><FormLabel>Link (Optional)</FormLabel><FormControl><Input placeholder="https://example.com" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                        <FormField control={addPostForm.control} name="imageUrl" render={({ field }) => ( 
+                            <FormItem>
+                                <FormLabel>Image URL or Embed Code (Optional)</FormLabel>
+                                <FormControl><Input placeholder="Paste image URL or embed code..." {...field} /></FormControl>
+                                {previewUrl && (
+                                    <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
+                                        <Image src={previewUrl} alt="Image preview" fill className="object-cover" />
+                                    </div>
+                                )}
+                                <FormMessage />
+                            </FormItem> 
+                        )}/>
                         <DialogFooter><Button type="button" variant="ghost" onClick={() => setIsAddPostOpen(false)}>Cancel</Button><Button type="submit" disabled={addPostForm.formState.isSubmitting}>{addPostForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Post</Button></DialogFooter>
                  </form></Form>
             </DialogContent>
@@ -634,7 +683,7 @@ function FeedPageComponent() {
                                         <Image src={activePost.imageUrl} alt={activePost.headline} fill className="object-cover" />
                                     </div>
                                 )}
-                                <div className="prose dark:prose-invert max-w-none whitespace-pre-line mt-4">
+                                <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none whitespace-pre-line mt-4">
                                     <ReactMarkdown>{activePost.content}</ReactMarkdown>
                                 </div>
                                 <Separator className="my-6" />
@@ -715,6 +764,3 @@ export default function FeedPage() {
         </Suspense>
     )
 }
-
-
-    

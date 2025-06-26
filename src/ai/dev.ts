@@ -12,3 +12,4 @@ import '@/ai/flows/analyze-post-flow.ts';
 import '@/ai/flows/generate-chart-data-flow.ts';
 import '@/ai/flows/generate-briefing-flow.ts';
 import '@/ai/flows/generate-timeline-flow.ts';
+import '@/ai/flows/analyze-problem-flow.ts';

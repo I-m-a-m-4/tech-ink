@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { useForm, SubmitHandler } from 'react-hook-form';
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from 'zod';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon } from 'lucide-react';
@@ -33,9 +35,45 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import type { BackgroundType } from '@/contexts/background-context';
+import Image from 'next/image';
+import { Separator } from '@/components/ui/separator';
 
 const IMGBB_API_KEY = (process.env.NEXT_PUBLIC_IMGBB_API_KEY || "").trim();
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
+
+const ArticleSchema = z.object({
+    title: z.string().min(1, "Title is required."),
+    description: z.string().min(1, "Description is required."),
+    content: z.string().min(1, "Content is required."),
+    imageUrl: z.string().url("Must be a valid URL.").or(z.literal('')),
+    imageAiHint: z.string().min(1, "AI Hint is required."),
+    externalUrl: z.string().url().optional().or(z.literal('')),
+    category: z.string().min(1, "Category is required."),
+});
+type ArticleFormValues = z.infer<typeof ArticleSchema>;
+
+const InsightSchema = z.object({
+    type: z.enum(['bar', 'line', 'area', 'quote']),
+    title: z.string().min(1, "Title is required"),
+    description: z.string().min(1, "Description is required"),
+    data: z.any().optional(),
+    config: z.any().optional(),
+    quote: z.object({
+        text: z.string(),
+        author: z.string(),
+    }).optional(),
+});
+type InsightFormValues = z.infer<typeof InsightSchema>;
+
+const FeedItemSchema = z.object({
+    headline: z.string().min(1, "Headline is required."),
+    content: z.string().min(1, "Content is required."),
+    platform: z.enum(['Twitter', 'YouTube', 'Instagram', 'TechInk']),
+    url: z.string().url().optional().or(z.literal('')),
+    imageUrl: z.string().url().optional().or(z.literal('')),
+    imageAiHint: z.string().optional(),
+});
+type FeedItemFormValues = z.infer<typeof FeedItemSchema>;
 
 type ArticleWithId = Article & { id: string };
 type InsightWithId = Insight & { id: string };
@@ -86,8 +124,26 @@ const NewsManager = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [editingArticle, setEditingArticle] = useState<ArticleWithId | null>(null);
     const { toast } = useToast();
-    const form = useForm<Article>();
+    const form = useForm<ArticleFormValues>({ resolver: zodResolver(ArticleSchema), defaultValues: { imageUrl: '' } });
     const watchedImageUrl = form.watch('imageUrl');
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+     useEffect(() => {
+        const input = watchedImageUrl || '';
+        const srcRegex = /<img[^>]+src="([^">]+)"/;
+        const match = input.match(srcRegex);
+        const potentialUrl = match ? match[1] : input;
+
+        try {
+            new URL(potentialUrl);
+            setPreviewUrl(potentialUrl);
+            if (match) {
+                form.setValue('imageUrl', potentialUrl, { shouldValidate: true });
+            }
+        } catch (e) {
+            setPreviewUrl(null);
+        }
+    }, [watchedImageUrl, form]);
 
     const fetchArticles = useCallback(async () => {
         if (!db) return;
@@ -132,7 +188,7 @@ const NewsManager = () => {
             const result = await response.json();
 
             if (result.success) {
-                form.setValue('imageUrl', result.data.url);
+                form.setValue('imageUrl', result.data.url, { shouldValidate: true });
                 toast({ title: "Success", description: "Image uploaded and URL is set." });
             } else {
                 throw new Error(result.error?.message || 'Image upload failed. Check API key or console for details.');
@@ -146,7 +202,7 @@ const NewsManager = () => {
     };
 
 
-    const onSubmit: SubmitHandler<Article> = async (data) => {
+    const onSubmit: SubmitHandler<ArticleFormValues> = async (data) => {
         if (!db) return;
         setIsSubmitting(true);
         try {
@@ -208,13 +264,15 @@ const NewsManager = () => {
 
     const handleEdit = (article: ArticleWithId) => {
         setEditingArticle(article);
-        form.setValue('title', article.title);
-        form.setValue('description', article.description);
-        form.setValue('content', article.content || '');
-        form.setValue('imageUrl', article.imageUrl);
-        form.setValue('imageAiHint', article.imageAiHint);
-        form.setValue('category', article.category);
-        form.setValue('externalUrl', article.externalUrl || '');
+        form.reset({
+            title: article.title,
+            description: article.description,
+            content: article.content || '',
+            imageUrl: article.imageUrl,
+            imageAiHint: article.imageAiHint,
+            category: article.category,
+            externalUrl: article.externalUrl || '',
+        });
     };
 
     const handleDelete = async (id: string) => {
@@ -231,7 +289,7 @@ const NewsManager = () => {
 
     const closeDialog = () => {
         setEditingArticle(null);
-        form.reset();
+        form.reset({ imageUrl: '' });
         document.getElementById('news-dialog-close')?.click();
     };
 
@@ -252,15 +310,21 @@ const NewsManager = () => {
                 )}/>
                 <FormField control={form.control} name="externalUrl" render={({ field }) => ( <FormItem><FormLabel>External URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/full-article" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                 
-                <div>
-                    <Label htmlFor="imageUrl">Image URL</Label>
-                    <Input id="imageUrl" placeholder="https://source.unsplash.com/random/800x400?tech" {...form.register('imageUrl', { required: true })} disabled={isUploading} />
-                    {watchedImageUrl && (
-                        <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
-                            <img src={watchedImageUrl} alt="Image preview" className="object-cover w-full h-full" />
-                        </div>
-                    )}
-                </div>
+                <FormField control={form.control} name="imageUrl" render={({ field }) => (
+                    <FormItem>
+                        <Label htmlFor="imageUrl">Image URL</Label>
+                        <FormControl>
+                            <Input id="imageUrl" placeholder="Paste a direct image URL or ImgBB embed code" {...field} disabled={isUploading} />
+                        </FormControl>
+                        {previewUrl && (
+                            <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
+                                <Image src={previewUrl} alt="Image preview" fill className="object-cover" />
+                            </div>
+                        )}
+                         <FormMessage />
+                    </FormItem>
+                )} />
+
                 <div>
                     <Label htmlFor="imageUpload">Or Upload Image</Label>
                     <Input id="imageUpload" type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploading || isSubmitting} className="file:text-primary file:font-semibold" />
@@ -330,7 +394,9 @@ const NewsManager = () => {
                     {articles.map((article) => (
                         <Card key={article.id} className="flex flex-col">
                             <CardHeader>
-                                <img src={article.imageUrl} alt={article.title} className="rounded-t-lg object-cover aspect-video" />
+                                <div className="relative aspect-video w-full overflow-hidden rounded-t-lg">
+                                    <Image src={article.imageUrl} alt={article.title} fill className="object-cover" />
+                                </div>
                                 <CardTitle className="pt-4">{article.title}</CardTitle>
                             </CardHeader>
                             <CardContent className="flex-grow">
@@ -386,11 +452,11 @@ const InsightsManager = () => {
     const [isGeneratingChart, setIsGeneratingChart] = useState(false);
     const [editingInsight, setEditingInsight] = useState<InsightWithId | null>(null);
     const { toast } = useToast();
-    const { register, handleSubmit, reset, setValue, watch } = useForm<Omit<InsightWithId, 'id'>>();
+    const form = useForm<InsightFormValues>({ resolver: zodResolver(InsightSchema) });
     
-    const watchedType = watch('type', 'quote');
-    const watchedTitle = watch('title');
-    const watchedDescription = watch('description');
+    const watchedType = form.watch('type');
+    const watchedTitle = form.watch('title');
+    const watchedDescription = form.watch('description');
 
 
     const fetchInsights = useCallback(async () => {
@@ -420,10 +486,10 @@ const InsightsManager = () => {
             const result = await generateChartData({
                 title: watchedTitle,
                 description: watchedDescription,
-                type: watchedType
+                type: watchedType as 'bar' | 'line' | 'area'
             });
-            setValue('data', JSON.stringify(JSON.parse(result.data), null, 2));
-            setValue('config', JSON.stringify(JSON.parse(result.config), null, 2));
+            form.setValue('data', JSON.stringify(JSON.parse(result.data), null, 2));
+            form.setValue('config', JSON.stringify(JSON.parse(result.config), null, 2));
             toast({ title: "✅ Chart Data Generated!", description: "The data and config fields have been populated." });
         } catch (e: any) {
             console.error("Error generating chart data:", e);
@@ -440,16 +506,16 @@ const InsightsManager = () => {
         }
     }
 
-    const onSubmit: SubmitHandler<any> = async (data) => {
+    const onSubmit: SubmitHandler<InsightFormValues> = async (data) => {
         if (!db) return;
         setIsSubmitting(true);
         try {
             let insightData: Partial<Insight> & { createdAt?: any } = {...data};
             // Safely parse JSON fields
-            if (insightData.type !== 'quote') {
+            if (insightData.type !== 'quote' && insightData.data && insightData.config) {
                 try {
-                    insightData.data = JSON.parse(insightData.data);
-                    insightData.config = JSON.parse(insightData.config);
+                    insightData.data = JSON.parse(insightData.data as any);
+                    insightData.config = JSON.parse(insightData.config as any);
                 } catch (e) {
                     toast({ variant: "destructive", title: "Invalid JSON", description: "Please check the format of the data and config fields." });
                     setIsSubmitting(false);
@@ -481,16 +547,14 @@ const InsightsManager = () => {
     
     const handleEdit = (insight: InsightWithId) => {
         setEditingInsight(insight);
-        setValue('title', insight.title);
-        setValue('description', insight.description);
-        setValue('type', insight.type);
-        if (insight.type === 'quote' && insight.quote) {
-            setValue('quote.text', insight.quote.text);
-            setValue('quote.author', insight.quote.author);
-        } else {
-            setValue('data', JSON.stringify(insight.data, null, 2));
-            setValue('config', JSON.stringify(insight.config, null, 2));
-        }
+        form.reset({
+            title: insight.title,
+            description: insight.description,
+            type: insight.type,
+            quote: insight.quote ? { text: insight.quote.text, author: insight.quote.author } : undefined,
+            data: insight.data ? JSON.stringify(insight.data, null, 2) as any : undefined,
+            config: insight.config ? JSON.stringify(insight.config, null, 2) as any : undefined,
+        });
     };
 
     const handleDelete = async (id: string) => {
@@ -507,51 +571,56 @@ const InsightsManager = () => {
     
     const closeDialog = () => {
         setEditingInsight(null);
-        reset();
+        form.reset();
         document.getElementById('insight-dialog-close')?.click();
     };
 
     const InsightForm = () => (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <Input placeholder="e.g., Developer Productivity Trends" {...register('title', { required: true })} />
-            <Textarea placeholder="An analysis of recent trends in the developer tool market..." {...register('description', { required: true })} />
-             <div>
-                <Label>Type</Label>
-                <Select onValueChange={(v: any) => setValue('type', v)} defaultValue={watchedType}>
-                    <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="quote">Quote</SelectItem>
-                        <SelectItem value="bar">Bar Chart</SelectItem>
-                        <SelectItem value="line">Line Chart</SelectItem>
-                        <SelectItem value="area">Area Chart</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            
-            {watchedType === 'quote' ? (
-                <>
-                    <Input placeholder="The future is already here – it's just not evenly distributed." {...register('quote.text')} />
-                    <Input placeholder="e.g., William Gibson" {...register('quote.author')} />
-                </>
-            ) : (
-                <>
-                    <Button type="button" onClick={handleGenerateChart} disabled={isGeneratingChart || !watchedTitle || !watchedDescription}>
-                        {isGeneratingChart ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                        Generate Chart with AI
-                    </Button>
-                    <Textarea placeholder='e.g., [{"name":"2022","value":10}]' {...register('data')} className="min-h-[150px] font-mono text-xs" />
-                    <Textarea placeholder='e.g., {"value":{"label":"Productivity"}}' {...register('config')} className="min-h-[150px] font-mono text-xs" />
-                </>
-            )}
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField control={form.control} name="title" render={({ field }) => ( <FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="e.g., Developer Productivity Trends" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea placeholder="An analysis of recent trends in the developer tool market..." {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="type" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                                <SelectItem value="quote">Quote</SelectItem>
+                                <SelectItem value="bar">Bar Chart</SelectItem>
+                                <SelectItem value="line">Line Chart</SelectItem>
+                                <SelectItem value="area">Area Chart</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )} />
 
-            <DialogFooter>
-                <Button type="button" variant="ghost" onClick={closeDialog}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {editingInsight ? 'Update' : 'Add'}
-                </Button>
-            </DialogFooter>
-        </form>
+                {watchedType === 'quote' ? (
+                    <>
+                        <FormField control={form.control} name="quote.text" render={({ field }) => ( <FormItem><FormLabel>Quote Text</FormLabel><FormControl><Input placeholder="The future is already here..." {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="quote.author" render={({ field }) => ( <FormItem><FormLabel>Quote Author</FormLabel><FormControl><Input placeholder="e.g., William Gibson" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </>
+                ) : (
+                    <>
+                        <Button type="button" onClick={handleGenerateChart} disabled={isGeneratingChart || !watchedTitle || !watchedDescription}>
+                            {isGeneratingChart ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
+                            Generate Chart with AI
+                        </Button>
+                        <FormField control={form.control} name="data" render={({ field }) => ( <FormItem><FormLabel>Chart Data (JSON)</FormLabel><FormControl><Textarea placeholder='e.g., [{"name":"2022","value":10}]' {...field} className="min-h-[150px] font-mono text-xs" /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="config" render={({ field }) => ( <FormItem><FormLabel>Chart Config (JSON)</FormLabel><FormControl><Textarea placeholder='e.g., {"value":{"label":"Productivity"}}' {...field} className="min-h-[150px] font-mono text-xs" /></FormControl><FormMessage /></FormItem> )} />
+                    </>
+                )}
+
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={closeDialog}>Cancel</Button>
+                    <Button type="submit" disabled={isSubmitting || isGeneratingChart}>
+                        {(isSubmitting || isGeneratingChart) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {editingInsight ? 'Update' : 'Add'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </Form>
     );
 
     return (
@@ -627,16 +696,35 @@ const InsightsManager = () => {
 // --- Feed Manager Component ---
 const FeedManager = () => {
     const [feedItems, setFeedItems] = useState<SocialFeedItemWithId[]>([]);
+    const [dailyTopics, setDailyTopics] = useState<SocialFeedItemWithId[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [editingItem, setEditingItem] = useState<SocialFeedItemWithId | null>(null);
     const [isGeneratingTopic, setIsGeneratingTopic] = useState(false);
-    const [currentTopic, setCurrentTopic] = useState<SocialFeedItemWithId | null>(null);
     const { toast } = useToast();
-    const form = useForm<Omit<SocialFeedItemWithId, 'id'>>();
+    const form = useForm<FeedItemFormValues>({ resolver: zodResolver(FeedItemSchema), defaultValues: { imageUrl: ''} });
     const [postFilter, setPostFilter] = useState('all'); // 'all', 'user', 'admin'
     const watchedImageUrl = form.watch('imageUrl');
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        const input = watchedImageUrl || '';
+        const srcRegex = /<img[^>]+src="([^">]+)"/;
+        const match = input.match(srcRegex);
+        const potentialUrl = match ? match[1] : input;
+
+        try {
+            new URL(potentialUrl);
+            setPreviewUrl(potentialUrl);
+            if (match) {
+                form.setValue('imageUrl', potentialUrl, { shouldValidate: true });
+            }
+        } catch (e) {
+            setPreviewUrl(null);
+        }
+    }, [watchedImageUrl, form]);
+
 
     const fetchFeedItems = useCallback(async () => {
         if (!db) return;
@@ -653,6 +741,21 @@ const FeedManager = () => {
         }
     }, [toast]);
 
+    const fetchAllDailyTopics = useCallback(async () => {
+        if (!db) return;
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, 'dailyTopics'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            setDailyTopics(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId)));
+        } catch (error) {
+            console.error("Error fetching daily topics: ", error);
+            toast({ variant: "destructive", title: "Failed to fetch daily topics." });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
     const filteredFeedItems = useMemo(() => {
         if (postFilter === 'user') {
             return feedItems.filter(item => !!item.userId);
@@ -663,28 +766,12 @@ const FeedManager = () => {
         return feedItems;
     }, [feedItems, postFilter]);
 
-    const fetchCurrentTopic = useCallback(async () => {
-        if (!db) return;
-        try {
-            const q = query(collection(db, 'dailyTopics'), orderBy('createdAt', 'desc'), limit(1));
-            const topicSnap = await getDocs(q);
-            if (!topicSnap.empty) {
-                const latestTopic = topicSnap.docs[0];
-                setCurrentTopic({ id: latestTopic.id, ...latestTopic.data() } as SocialFeedItemWithId);
-            } else {
-                setCurrentTopic(null);
-            }
-        } catch (error) {
-            console.error("Error fetching current topic: ", error);
-        }
-    }, []);
-
     useEffect(() => {
         if(db) {
             fetchFeedItems();
-            fetchCurrentTopic();
+            fetchAllDailyTopics();
         }
-    }, [fetchFeedItems, fetchCurrentTopic]);
+    }, [fetchFeedItems, fetchAllDailyTopics]);
 
     const handleGenerateTopic = async () => {
         if (!db) return;
@@ -695,18 +782,14 @@ const FeedManager = () => {
             const dailyTopicsCollection = collection(db, 'dailyTopics');
             await addDoc(dailyTopicsCollection, { ...post, createdAt: serverTimestamp() });
             
-            toast({ title: "✅ Success!", description: "New Topic of the Day has been generated and will appear at the top of the feed." });
-            fetchCurrentTopic(); // Refresh the displayed topic
+            toast({ title: "✅ Success!", description: "New Topic of the Day has been generated." });
+            fetchAllDailyTopics();
         } catch (error: any) {
             console.error("Error generating Topic of the Day:", error);
             const description = error.message?.toLowerCase().includes('api key') 
-                ? "This is likely due to an invalid Google AI API key. Please check your GOOGLE_API_KEY in the .env.local file and restart the server."
-                : "Could not generate the featured post. Please check the server console for more details.";
-            toast({ 
-                variant: "destructive", 
-                title: "AI Generation Failed", 
-                description
-            });
+                ? "This is likely due to an invalid Google AI API key."
+                : "Could not generate the featured post.";
+            toast({ variant: "destructive", title: "AI Generation Failed", description });
         } finally {
             setIsGeneratingTopic(false);
         }
@@ -721,20 +804,28 @@ const FeedManager = () => {
             const batch = writeBatch(db);
             const newTopicRef = doc(collection(db, 'dailyTopics'));
             batch.set(newTopicRef, newTopicData);
-    
-            // Delete the original post from the 'feedItems' collection if it was a user post
-            if (itemToPin.userId) {
-                batch.delete(doc(db, 'feedItems', oldId));
-            }
+            batch.delete(doc(db, 'feedItems', oldId));
     
             await batch.commit();
             
             toast({ title: "Success!", description: "Post has been pinned as the new Topic of the Day." });
             fetchFeedItems();
-            fetchCurrentTopic();
+            fetchAllDailyTopics();
         } catch (error) {
             console.error("Error pinning post:", error);
             toast({ variant: "destructive", title: "Pinning Failed", description: "Could not pin the post." });
+        }
+    };
+
+    const handleDeleteDailyTopic = async (id: string) => {
+        if (!db) return;
+        try {
+            await deleteDoc(doc(db, 'dailyTopics', id));
+            toast({ title: "Success", description: "Deep Dive post deleted." });
+            fetchAllDailyTopics();
+        } catch (error) {
+            console.error("Error deleting Deep Dive:", error);
+            toast({ variant: "destructive", title: "Failed to delete Deep Dive." });
         }
     };
 
@@ -743,7 +834,7 @@ const FeedManager = () => {
         if (!file) return;
 
         if (!IMGBB_API_KEY) {
-            toast({ variant: "destructive", title: "Image Upload Disabled", description: "Please configure an ImgBB API key in your environment variables." });
+            toast({ variant: "destructive", title: "Image Upload Disabled", description: "Please configure an ImgBB API key." });
             return;
         }
 
@@ -762,20 +853,20 @@ const FeedManager = () => {
             const result = await response.json();
 
             if (result.success) {
-                form.setValue('imageUrl', result.data.url);
+                form.setValue('imageUrl', result.data.url, { shouldValidate: true });
                 toast({ title: "Success", description: "Image uploaded and URL is set." });
             } else {
                 throw new Error(result.error?.message || 'Image upload failed.');
             }
         } catch (error: any) {
             console.error("ImgBB upload error:", error);
-            toast({ variant: "destructive", title: "Image Upload Failed", description: "This is likely due to an invalid ImgBB API key. Please check your key in the .env.local file and restart the server." });
+            toast({ variant: "destructive", title: "Image Upload Failed", description: error.message });
         } finally {
             setIsUploading(false);
         }
     };
 
-    const onSubmit: SubmitHandler<any> = async (data) => {
+    const onSubmit: SubmitHandler<FeedItemFormValues> = async (data) => {
         if (!db) return;
         setIsSubmitting(true);
         try {
@@ -795,7 +886,6 @@ const FeedManager = () => {
                     ...payload, 
                     likes: 0, 
                     comments: 0, 
-                    views: 0,
                     createdAt: serverTimestamp() 
                 });
                 toast({ title: "Success", description: "Feed item added." });
@@ -812,13 +902,11 @@ const FeedManager = () => {
 
     const handleEdit = (item: SocialFeedItemWithId) => {
         setEditingItem(item);
-        const { id, createdAt, likes, comments, views, ...formData } = item;
-        Object.keys(formData).forEach(key => {
-            form.setValue(key as keyof typeof formData, formData[key as keyof typeof formData]);
-        });
+        const { id, createdAt, likes, comments, views, author, handle, avatar, time, userId, ...formData } = item;
+        form.reset(formData);
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDeleteFeedItem = async (id: string) => {
         if (!db) return;
         try {
             await deleteDoc(doc(db, 'feedItems', id));
@@ -832,56 +920,65 @@ const FeedManager = () => {
     
     const closeDialog = () => {
         setEditingItem(null);
-        form.reset();
+        form.reset({ imageUrl: '' });
         document.getElementById('feed-dialog-close')?.click();
     };
 
     const FeedForm = () => (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <Input placeholder="e.g., My Thoughts on the New Framework" {...form.register('headline')} />
-            <Textarea placeholder="Share the details of the post here..." {...form.register('content')} />
-            <div>
-                <Label>Platform</Label>
-                <Select onValueChange={(v: any) => form.setValue('platform', v)} defaultValue={editingItem?.platform}>
-                    <SelectTrigger><SelectValue placeholder="Platform" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Twitter">Twitter</SelectItem>
-                        <SelectItem value="YouTube">YouTube</SelectItem>
-                        <SelectItem value="Instagram">Instagram</SelectItem>
-                        <SelectItem value="TechInk">TechInk</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <Input placeholder="e.g., https://twitter.com/post/123" {...form.register('url')} />
-            <div>
-                <Label htmlFor="feedImageUrl">Image URL (Optional)</Label>
-                <Input id="feedImageUrl" placeholder="https://source.unsplash.com/random/800x400?code" {...form.register('imageUrl')} disabled={isUploading} />
-                 {watchedImageUrl && (
-                    <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
-                        <img src={watchedImageUrl} alt="Image preview" className="object-cover w-full h-full" />
-                    </div>
-                )}
-            </div>
-            <div>
-                <Label htmlFor="feedImageUpload">Or Upload Image</Label>
-                <Input id="feedImageUpload" type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploading || isSubmitting} className="file:text-primary file:font-semibold" />
-                {isUploading && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-2 mt-2">
-                        <Loader2 className="h-4 w-4 animate-spin" /> 
-                        Uploading, please wait...
-                    </p>
-                )}
-            </div>
-            <Input placeholder="e.g., abstract code" {...form.register('imageAiHint')} />
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField control={form.control} name="headline" render={({ field }) => ( <FormItem><FormLabel>Headline</FormLabel><FormControl><Input placeholder="e.g., My Thoughts on the New Framework" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="content" render={({ field }) => ( <FormItem><FormLabel>Content</FormLabel><FormControl><Textarea placeholder="Share the details of the post here..." {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="platform" render={({ field }) => ( 
+                    <FormItem>
+                        <FormLabel>Platform</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Platform" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                                <SelectItem value="Twitter">Twitter</SelectItem>
+                                <SelectItem value="YouTube">YouTube</SelectItem>
+                                <SelectItem value="Instagram">Instagram</SelectItem>
+                                <SelectItem value="TechInk">TechInk</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                <FormField control={form.control} name="url" render={({ field }) => ( <FormItem><FormLabel>URL</FormLabel><FormControl><Input placeholder="e.g., https://twitter.com/post/123" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="imageUrl" render={({ field }) => ( 
+                    <FormItem>
+                        <FormLabel>Image URL (Optional)</FormLabel>
+                        <FormControl><Input placeholder="Paste a direct image URL or ImgBB embed code" {...field} disabled={isUploading} /></FormControl>
+                        {previewUrl && (
+                           <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
+                               <Image src={previewUrl} alt="Image preview" fill className="object-cover" />
+                           </div>
+                       )}
+                       <FormMessage />
+                    </FormItem>
+                 )} />
 
-            <DialogFooter>
-                <Button type="button" variant="ghost" onClick={closeDialog}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting || isUploading}>
-                    {(isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {editingItem ? 'Update' : 'Add'}
-                </Button>
-            </DialogFooter>
-        </form>
+                <div>
+                    <Label htmlFor="feedImageUpload">Or Upload Image</Label>
+                    <Input id="feedImageUpload" type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploading || isSubmitting} className="file:text-primary file:font-semibold" />
+                    {isUploading && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-2 mt-2">
+                            <Loader2 className="h-4 w-4 animate-spin" /> 
+                            Uploading, please wait...
+                        </p>
+                    )}
+                </div>
+                <FormField control={form.control} name="imageAiHint" render={({ field }) => ( <FormItem><FormLabel>Image AI Hint (Optional)</FormLabel><FormControl><Input placeholder="e.g., abstract code" {...field} /></FormControl><FormMessage /></FormItem> )} />
+
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={closeDialog}>Cancel</Button>
+                    <Button type="submit" disabled={isSubmitting || isUploading}>
+                        {(isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {editingItem ? 'Update' : 'Add'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </Form>
     );
 
     return (
@@ -894,32 +991,44 @@ const FeedManager = () => {
                 <CardContent>
                     <Button onClick={handleGenerateTopic} disabled={isGeneratingTopic}>
                         {isGeneratingTopic ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                        Generate & Pin New Topic
+                        Generate New Topic
                     </Button>
-                    {currentTopic && (
-                        <div className="mt-4 rounded-lg border p-4 bg-muted/50">
-                            <p className="text-sm text-muted-foreground">Current Pinned Topic</p>
-                            <p className="font-semibold">{currentTopic.headline}</p>
-                            <p className="text-xs text-muted-foreground">by {currentTopic.author}</p>
-                        </div>
-                    )}
                 </CardContent>
             </Card>
 
+            <h3 className="text-2xl font-bold mt-12 mb-4">Manage Deep Dives (Pinned Topics)</h3>
+            {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {Array.from({ length: dailyTopics.length || 1 }).map((_, i) => <SkeletonCard key={i} />)}
+                </div>
+            ) : dailyTopics.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {dailyTopics.map((item) => (
+                        <Card key={item.id} className="flex flex-col">
+                            <CardHeader>
+                                <CardTitle className="text-base">{item.headline}</CardTitle>
+                                <CardDescription>by {item.author}</CardDescription>
+                            </CardHeader>
+                            <CardFooter className="border-t flex justify-end gap-2 pt-4 mt-auto">
+                                 <AlertDialog>
+                                    <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader><AlertDialogTitle>Delete Deep Dive?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this "Topic of the Day".</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDeleteDailyTopic(item.id)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            ) : (
+                 <p className="text-muted-foreground text-center py-12">No Deep Dives found.</p>
+            )}
+
+            <Separator className="my-12" />
+
             <div className='flex justify-between items-center mb-8'>
-                <Dialog onOpenChange={(open) => !open && closeDialog()}>
-                    <DialogTrigger asChild>
-                        <Button><PlusCircle className="mr-2 h-4 w-4" /> Add Feed Item Manually</Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>{editingItem ? 'Edit' : 'Add'} Feed Item</DialogTitle>
-                            <DialogDescription>Create or edit a feed item. This will be posted under the admin account.</DialogDescription>
-                        </DialogHeader>
-                        <FeedForm />
-                    </DialogContent>
-                    <DialogClose id="feed-dialog-close" className="hidden" />
-                </Dialog>
+                <h3 className="text-2xl font-bold">Manage Feed Items</h3>
                 <div className="flex gap-2">
                     <Button variant={postFilter === 'all' ? 'default' : 'outline'} onClick={() => setPostFilter('all')}>All</Button>
                     <Button variant={postFilter === 'user' ? 'default' : 'outline'} onClick={() => setPostFilter('user')}>User</Button>
@@ -952,54 +1061,24 @@ const FeedManager = () => {
                             <CardContent className="flex-grow">
                                 <h4 className="font-semibold mb-2">{item.headline}</h4>
                                 <p className="text-muted-foreground line-clamp-4">{item.content}</p>
-                                <div className="text-xs text-muted-foreground mt-4 flex gap-4">
-                                    <span>Likes: {item.likes}</span>
-                                    <span>Comments: {item.comments}</span>
-                                    <span>Views: {item.views || 0}</span>
-                                </div>
                             </CardContent>
                             <CardFooter className="border-t flex justify-end gap-2 pt-4">
                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="outline" size="icon" title="Pin as Topic of the Day" disabled={currentTopic?.id === item.id}><Star className="h-4 w-4" /></Button>
-                                    </AlertDialogTrigger>
+                                    <AlertDialogTrigger asChild><Button variant="outline" size="icon" title="Pin as Topic of the Day"><Star className="h-4 w-4" /></Button></AlertDialogTrigger>
                                     <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Pin this Post?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will make this post the new "Topic of the Day" and pin it to the top of the feed for everyone. If it's a user post, the original will be removed.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handlePin(item)}>Pin Post</AlertDialogAction>
-                                        </AlertDialogFooter>
+                                        <AlertDialogHeader><AlertDialogTitle>Pin this Post?</AlertDialogTitle><AlertDialogDescription>This will make this post the new "Topic of the Day" and remove it from the main feed.</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handlePin(item)}>Pin Post</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                                 <Dialog onOpenChange={(open) => !open && closeDialog()}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" size="icon" onClick={() => handleEdit(item)}><Edit className="h-4 w-4" /></Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                                        <DialogHeader><DialogTitle>Edit Feed Item</DialogTitle><DialogDescription>Make changes to this post. Note: You are editing as an admin.</DialogDescription></DialogHeader>
-                                        <FeedForm />
-                                    </DialogContent>
+                                    <DialogTrigger asChild><Button variant="outline" size="icon" onClick={() => handleEdit(item)}><Edit className="h-4 w-4" /></Button></DialogTrigger>
+                                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Edit Feed Item</DialogTitle><DialogDescription>Make changes to this post.</DialogDescription></DialogHeader><FeedForm /></DialogContent>
                                 </Dialog>
                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button>
-                                    </AlertDialogTrigger>
+                                    <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                     <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This action cannot be undone. This will permanently delete this feed item.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(item.id)}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
+                                        <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete this feed item.</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDeleteFeedItem(item.id)}>Delete</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                             </CardFooter>
@@ -1383,6 +1462,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-
-    

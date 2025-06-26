@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Gem, Trophy, AlertTriangle } from 'lucide-react';
+import { Trophy, AlertTriangle, PenLine } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import type { UserProfile } from "@/contexts/auth-context";
@@ -28,6 +28,23 @@ interface LeaderboardClientPageProps {
     initialUsers: UserData[];
     error: boolean;
 }
+
+interface Rank {
+    name: string;
+    color: string;
+}
+
+const getRank = (points: number): Rank => {
+    if (points >= 1000000) return { name: "1 Million Ink", color: "text-purple-400" };
+    if (points >= 500000) return { name: "Ink Master", color: "text-amber-400" };
+    if (points >= 100000) return { name: "Visionary", color: "text-cyan-400" };
+    if (points >= 50000) return { name: "Prodigy", color: "text-emerald-400" };
+    if (points >= 10000) return { name: "Analyst", color: "text-blue-400" };
+    if (points >= 1000) return { name: "Contributor", color: "text-rose-400" };
+    if (points > 0) return { name: "Tinkerer", color: "text-muted-foreground" };
+    return { name: "Newcomer", color: "text-muted-foreground" };
+};
+
 
 export default function LeaderboardClientPage({ initialUsers, error }: LeaderboardClientPageProps) {
   const getMedal = (rank: number) => {
@@ -60,31 +77,35 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
         );
     }
     
-    return initialUsers.map((user, index) => (
-        <TableRow key={user.id} className={index < 3 ? 'bg-primary/5' : ''}>
-            <TableCell className="text-center">
-                {getMedal(index + 1)}
-            </TableCell>
-            <TableCell>
-                <Link href={`/u/${user.handle.substring(1)}`} className="flex items-center gap-3 group">
-                    <Avatar>
-                        <AvatarImage src={user.avatar} alt={user.displayName} />
-                        <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <p className="font-medium group-hover:text-primary group-hover:underline">{user.displayName}</p>
-                        <p className="text-sm text-muted-foreground">{user.handle}</p>
+    return initialUsers.map((user, index) => {
+        const userRank = getRank(user.points || 0);
+        return (
+            <TableRow key={user.id} className={index < 3 ? 'bg-primary/5' : ''}>
+                <TableCell className="text-center">
+                    {getMedal(index + 1)}
+                </TableCell>
+                <TableCell>
+                    <Link href={`/u/${user.handle.substring(1)}`} className="flex items-center gap-3 group">
+                        <Avatar>
+                            <AvatarImage src={user.avatar} alt={user.displayName} />
+                            <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <p className="font-medium group-hover:text-primary group-hover:underline">{user.displayName}</p>
+                            <p className="text-sm text-muted-foreground">{user.handle}</p>
+                             <p className={`text-xs font-bold ${userRank.color}`}>{userRank.name}</p>
+                        </div>
+                    </Link>
+                </TableCell>
+                <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2 font-bold">
+                        <PenLine className="h-4 w-4 text-primary" />
+                        <span>{(user.points || 0).toLocaleString()}</span>
                     </div>
-                </Link>
-            </TableCell>
-            <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-2 font-bold">
-                    <Gem className="h-4 w-4 text-primary" />
-                    <span>{(user.points || 0).toLocaleString()}</span>
-                </div>
-            </TableCell>
-        </TableRow>
-    ));
+                </TableCell>
+            </TableRow>
+        )
+    });
   }
 
   return (
@@ -95,7 +116,7 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
                     <TableRow>
                         <TableHead className="w-[100px] text-center">Rank</TableHead>
                         <TableHead>User</TableHead>
-                        <TableHead className="text-right">Insight Points</TableHead>
+                        <TableHead className="text-right">Ink Points</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>

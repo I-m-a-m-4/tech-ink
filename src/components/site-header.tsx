@@ -22,12 +22,14 @@ import { Separator } from "./ui/separator";
 import { BackgroundSwitcher } from "./background-switcher";
 import { useRouter } from "next/navigation";
 import { startLoader } from "@/lib/loader-events";
+import { BrainCircuit } from "lucide-react";
 
 const navLinks = [
     { href: "/news", label: "News", icon: <Icons.news className="h-5 w-5" /> },
     { href: "/insights", label: "Insights", icon: <Icons.insights className="h-5 w-5" /> },
     { href: "/feed", label: "Feed", icon: <Icons.feed className="h-5 w-5" /> },
     { href: "/leaderboard", label: "Leaderboard", icon: <Icons.trophy className="h-5 w-5" /> },
+    { href: "/analysis", label: "Analysis", icon: <BrainCircuit className="h-5 w-5" /> },
 ];
 
 const NavLinkItems = ({ isMobile = false, closeSheet }: { isMobile?: boolean, closeSheet?: () => void }) => {
@@ -92,7 +94,7 @@ export function SiteHeader() {
       return (
            <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <Icons.gem className="h-4 w-4" />
+                <Icons.pen className="h-4 w-4" />
                 <span>{profile?.points ?? 0}</span>
                 </div>
                 <DropdownMenu>
@@ -184,9 +186,14 @@ export function SiteHeader() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 text-lg font-semibold text-primary p-4 rounded-lg bg-muted">
-                                <Icons.gem className="h-5 w-5" />
-                                <span>{profile?.points ?? 0} Insight Points</span>
+                                <Icons.pen className="h-5 w-5" />
+                                <span>{profile?.points ?? 0} Ink Points</span>
                             </div>
+                             <SheetClose asChild>
+                                <Button variant="secondary" asChild className="w-full">
+                                    <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}>Settings</Link>
+                                </Button>
+                            </SheetClose>
                              <SheetClose asChild>
                                 <Button onClick={handleSignOut} variant="outline" className="w-full">Log out</Button>
                             </SheetClose>
@@ -203,11 +210,6 @@ export function SiteHeader() {
                      )}
                     </div>
                     <div className="mt-auto flex flex-col items-center gap-4 p-6 border-t">
-                        <SheetClose asChild>
-                            <Button variant="secondary" asChild className="w-full">
-                                <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}>Settings</Link>
-                            </Button>
-                        </SheetClose>
                       <BackgroundSwitcher />
                       <div className="text-center text-xs text-muted-foreground">
                           &copy; {new Date().getFullYear()} Tech Ink Insights
