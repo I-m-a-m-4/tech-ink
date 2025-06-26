@@ -8,7 +8,7 @@ export type SiteSettings = {
 };
 
 export async function getSiteSettings(): Promise<SiteSettings> {
-  const defaultConfig: SiteSettings = { defaultBackground: 'grid' };
+  const defaultConfig: SiteSettings = { defaultBackground: 'plain' };
   if (!db) {
     return defaultConfig;
   }
