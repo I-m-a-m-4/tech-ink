@@ -39,7 +39,7 @@ const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").
 
 type ArticleWithId = Article & { id: string };
 type InsightWithId = Insight & { id: string };
-type SocialFeedItemWithId = SocialFeedItem & { id: string, views?: number, userId?: string, comments: number };
+type SocialFeedItemWithId = SocialFeedItem & { id: string, userId?: string, comments: number };
 type TimelineData = { id: string; topic: string; events: TimelineEvent[]; createdAt?: any; };
 
 const SkeletonCard = () => (
@@ -300,7 +300,7 @@ const NewsManager = () => {
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2 h-4 w-4" /> Add Manually</Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{editingArticle ? 'Edit' : 'Add'} News Article</DialogTitle>
                             <DialogDescription>Fill in the details for the article. Click the save button when you're done.</DialogDescription>
@@ -336,7 +336,7 @@ const NewsManager = () => {
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="icon" onClick={() => handleEdit(article)}><Edit className="h-4 w-4" /></Button>
                                     </DialogTrigger>
-                                    <DialogContent>
+                                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                                         <DialogHeader>
                                             <DialogTitle>Edit News Article</DialogTitle>
                                             <DialogDescription>Make changes to this article. Click the update button when you're done.</DialogDescription>
@@ -554,7 +554,7 @@ const InsightsManager = () => {
                 <DialogTrigger asChild>
                     <Button className="mb-8"><PlusCircle className="mr-2 h-4 w-4" /> Add Insight</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingInsight ? 'Edit' : 'Add'} Insight</DialogTitle>
                         <DialogDescription>Create or edit a data insight. This can be a chart or a quote.</DialogDescription>
@@ -582,7 +582,7 @@ const InsightsManager = () => {
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="icon" onClick={() => handleEdit(insight)}><Edit className="h-4 w-4" /></Button>
                                     </DialogTrigger>
-                                    <DialogContent className="max-w-2xl">
+                                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                                         <DialogHeader>
                                             <DialogTitle>Edit Insight</DialogTitle>
                                             <DialogDescription>Make changes to this insight. Click the update button when you're done.</DialogDescription>
@@ -788,7 +788,6 @@ const FeedManager = () => {
                     ...payload, 
                     likes: 0, 
                     comments: 0, 
-                    views: 0,
                     createdAt: serverTimestamp() 
                 });
                 toast({ title: "Success", description: "Feed item added." });
@@ -805,7 +804,7 @@ const FeedManager = () => {
 
     const handleEdit = (item: SocialFeedItemWithId) => {
         setEditingItem(item);
-        const { id, createdAt, likes, comments, views, ...formData } = item;
+        const { id, createdAt, likes, comments, ...formData } = item;
         Object.keys(formData).forEach(key => {
             setValue(key as keyof typeof formData, formData[key as keyof typeof formData]);
         });
@@ -899,7 +898,7 @@ const FeedManager = () => {
                     <DialogTrigger asChild>
                         <Button><PlusCircle className="mr-2 h-4 w-4" /> Add Feed Item Manually</Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{editingItem ? 'Edit' : 'Add'} Feed Item</DialogTitle>
                             <DialogDescription>Create or edit a feed item. This will be posted under the admin account.</DialogDescription>
@@ -943,7 +942,6 @@ const FeedManager = () => {
                                 <div className="text-xs text-muted-foreground mt-4 flex gap-4">
                                     <span>Likes: {item.likes}</span>
                                     <span>Comments: {item.comments}</span>
-                                    <span>Views: {item.views || 0}</span>
                                 </div>
                             </CardContent>
                             <CardFooter className="border-t flex justify-end gap-2 pt-4">
@@ -970,7 +968,7 @@ const FeedManager = () => {
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="icon" onClick={() => handleEdit(item)}><Edit className="h-4 w-4" /></Button>
                                     </DialogTrigger>
-                                    <DialogContent className="max-w-2xl">
+                                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                                         <DialogHeader><DialogTitle>Edit Feed Item</DialogTitle><DialogDescription>Make changes to this post. Note: You are editing as an admin.</DialogDescription></DialogHeader>
                                         <FeedForm />
                                     </DialogContent>
@@ -1171,8 +1169,13 @@ const SiteSettingsManager = () => {
             const settingsRef = doc(db, 'settings', 'site_config');
             await setDoc(settingsRef, data, { merge: true });
             toast({ title: "Success", description: "Site settings updated." });
-        } catch (error) {
-            toast({ variant: "destructive", title: "Failed to save settings." });
+        } catch (error: any) {
+            console.error("Failed to save site settings:", error);
+            toast({ 
+                variant: "destructive", 
+                title: "Failed to save settings",
+                description: "This is likely a Firestore security rule issue. Check the console for more details."
+            });
         } finally {
             setIsSubmitting(false);
         }
