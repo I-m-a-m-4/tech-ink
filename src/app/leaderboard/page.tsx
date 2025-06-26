@@ -18,9 +18,10 @@ type UserData = UserProfile & {
 };
 
 async function getTopUsers(): Promise<{ data: UserData[], error: boolean }> {
-  // This function now only runs on the server, where env vars are reliably available.
+  // This function now only runs on the server.
   if (initializationError || !db) {
-    console.error("Firebase not initialized. Check your .env.local variables.");
+    // Silently fail during build if env vars are not present.
+    // The client page will handle displaying the error message.
     return { data: [], error: true };
   }
   try {
