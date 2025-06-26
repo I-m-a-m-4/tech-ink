@@ -192,9 +192,9 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                         </div>
                         <div onClick={() => onPostClick(item)} className="group cursor-pointer">
                             <h3 className="mt-3 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <div className="mt-1 text-foreground/90 whitespace-pre-line prose dark:prose-invert max-w-none"><ReactMarkdown>{item.content}</ReactMarkdown></div>
+                            <div className="mt-1 text-foreground/90 whitespace-pre-line prose dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
-                        <div className="mt-4 flex items-center gap-1 sm:gap-6 text-muted-foreground">
+                        <div className="mt-4 flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
                                 <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
                                 <span>{likeCount}</span>
@@ -330,9 +330,9 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                                 </div>
                             )}
                             <h3 className="mt-4 text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                            <div className="mt-2 text-foreground/90 whitespace-pre-line prose dark:prose-invert max-w-none"><ReactMarkdown>{item.content}</ReactMarkdown></div>
+                            <div className="mt-2 text-foreground/90 whitespace-pre-line prose dark:prose-invert max-w-none break-words"><ReactMarkdown>{item.content}</ReactMarkdown></div>
                         </div>
-                        <div className="mt-4 flex items-center gap-1 sm:gap-6 text-muted-foreground">
+                        <div className="mt-4 flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
                                 <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
                                 <span>{likeCount}</span>
@@ -715,3 +715,6 @@ export default function FeedPage() {
         </Suspense>
     )
 }
+
+
+    

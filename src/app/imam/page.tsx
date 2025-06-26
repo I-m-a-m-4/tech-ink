@@ -39,7 +39,7 @@ const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").
 
 type ArticleWithId = Article & { id: string };
 type InsightWithId = Insight & { id: string };
-type SocialFeedItemWithId = SocialFeedItem & { id: string, userId?: string, comments: number };
+type SocialFeedItemWithId = SocialFeedItem & { id: string, views?: number, userId?: string, comments: number };
 type TimelineData = { id: string; topic: string; events: TimelineEvent[]; createdAt?: any; };
 
 const SkeletonCard = () => (
@@ -87,6 +87,7 @@ const NewsManager = () => {
     const [editingArticle, setEditingArticle] = useState<ArticleWithId | null>(null);
     const { toast } = useToast();
     const form = useForm<Article>();
+    const watchedImageUrl = form.watch('imageUrl');
 
     const fetchArticles = useCallback(async () => {
         if (!db) return;
@@ -254,6 +255,11 @@ const NewsManager = () => {
                 <div>
                     <Label htmlFor="imageUrl">Image URL</Label>
                     <Input id="imageUrl" placeholder="https://source.unsplash.com/random/800x400?tech" {...form.register('imageUrl', { required: true })} disabled={isUploading} />
+                    {watchedImageUrl && (
+                        <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
+                            <img src={watchedImageUrl} alt="Image preview" className="object-cover w-full h-full" />
+                        </div>
+                    )}
                 </div>
                 <div>
                     <Label htmlFor="imageUpload">Or Upload Image</Label>
@@ -628,8 +634,9 @@ const FeedManager = () => {
     const [isGeneratingTopic, setIsGeneratingTopic] = useState(false);
     const [currentTopic, setCurrentTopic] = useState<SocialFeedItemWithId | null>(null);
     const { toast } = useToast();
-    const { register, handleSubmit, reset, setValue } = useForm<Omit<SocialFeedItemWithId, 'id'>>();
+    const form = useForm<Omit<SocialFeedItemWithId, 'id'>>();
     const [postFilter, setPostFilter] = useState('all'); // 'all', 'user', 'admin'
+    const watchedImageUrl = form.watch('imageUrl');
 
     const fetchFeedItems = useCallback(async () => {
         if (!db) return;
@@ -755,7 +762,7 @@ const FeedManager = () => {
             const result = await response.json();
 
             if (result.success) {
-                setValue('imageUrl', result.data.url);
+                form.setValue('imageUrl', result.data.url);
                 toast({ title: "Success", description: "Image uploaded and URL is set." });
             } else {
                 throw new Error(result.error?.message || 'Image upload failed.');
@@ -788,6 +795,7 @@ const FeedManager = () => {
                     ...payload, 
                     likes: 0, 
                     comments: 0, 
+                    views: 0,
                     createdAt: serverTimestamp() 
                 });
                 toast({ title: "Success", description: "Feed item added." });
@@ -804,9 +812,9 @@ const FeedManager = () => {
 
     const handleEdit = (item: SocialFeedItemWithId) => {
         setEditingItem(item);
-        const { id, createdAt, likes, comments, ...formData } = item;
+        const { id, createdAt, likes, comments, views, ...formData } = item;
         Object.keys(formData).forEach(key => {
-            setValue(key as keyof typeof formData, formData[key as keyof typeof formData]);
+            form.setValue(key as keyof typeof formData, formData[key as keyof typeof formData]);
         });
     };
 
@@ -824,17 +832,17 @@ const FeedManager = () => {
     
     const closeDialog = () => {
         setEditingItem(null);
-        reset();
+        form.reset();
         document.getElementById('feed-dialog-close')?.click();
     };
 
     const FeedForm = () => (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <Input placeholder="e.g., My Thoughts on the New Framework" {...register('headline')} />
-            <Textarea placeholder="Share the details of the post here..." {...register('content')} />
+            <Input placeholder="e.g., My Thoughts on the New Framework" {...form.register('headline')} />
+            <Textarea placeholder="Share the details of the post here..." {...form.register('content')} />
             <div>
                 <Label>Platform</Label>
-                <Select onValueChange={(v: any) => setValue('platform', v)} defaultValue={editingItem?.platform}>
+                <Select onValueChange={(v: any) => form.setValue('platform', v)} defaultValue={editingItem?.platform}>
                     <SelectTrigger><SelectValue placeholder="Platform" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="Twitter">Twitter</SelectItem>
@@ -844,10 +852,15 @@ const FeedManager = () => {
                     </SelectContent>
                 </Select>
             </div>
-            <Input placeholder="e.g., https://twitter.com/post/123" {...register('url')} />
+            <Input placeholder="e.g., https://twitter.com/post/123" {...form.register('url')} />
             <div>
                 <Label htmlFor="feedImageUrl">Image URL (Optional)</Label>
-                <Input id="feedImageUrl" placeholder="https://source.unsplash.com/random/800x400?code" {...register('imageUrl')} disabled={isUploading} />
+                <Input id="feedImageUrl" placeholder="https://source.unsplash.com/random/800x400?code" {...form.register('imageUrl')} disabled={isUploading} />
+                 {watchedImageUrl && (
+                    <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
+                        <img src={watchedImageUrl} alt="Image preview" className="object-cover w-full h-full" />
+                    </div>
+                )}
             </div>
             <div>
                 <Label htmlFor="feedImageUpload">Or Upload Image</Label>
@@ -859,7 +872,7 @@ const FeedManager = () => {
                     </p>
                 )}
             </div>
-            <Input placeholder="e.g., abstract code" {...register('imageAiHint')} />
+            <Input placeholder="e.g., abstract code" {...form.register('imageAiHint')} />
 
             <DialogFooter>
                 <Button type="button" variant="ghost" onClick={closeDialog}>Cancel</Button>
@@ -942,28 +955,27 @@ const FeedManager = () => {
                                 <div className="text-xs text-muted-foreground mt-4 flex gap-4">
                                     <span>Likes: {item.likes}</span>
                                     <span>Comments: {item.comments}</span>
+                                    <span>Views: {item.views || 0}</span>
                                 </div>
                             </CardContent>
                             <CardFooter className="border-t flex justify-end gap-2 pt-4">
-                                {item.userId && (
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="outline" size="icon" title="Pin as Topic of the Day"><Star className="h-4 w-4" /></Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Pin this Post?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will make this post the new "Topic of the Day" and pin it to the top of the feed for everyone. The original post will be removed.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handlePin(item)}>Pin Post</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                )}
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="outline" size="icon" title="Pin as Topic of the Day" disabled={currentTopic?.id === item.id}><Star className="h-4 w-4" /></Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Pin this Post?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will make this post the new "Topic of the Day" and pin it to the top of the feed for everyone. If it's a user post, the original will be removed.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handlePin(item)}>Pin Post</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                                 <Dialog onOpenChange={(open) => !open && closeDialog()}>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="icon" onClick={() => handleEdit(item)}><Edit className="h-4 w-4" /></Button>
@@ -1170,7 +1182,7 @@ const SiteSettingsManager = () => {
             await setDoc(settingsRef, data, { merge: true });
             toast({ title: "Success", description: "Site settings updated." });
         } catch (error: any) {
-            console.error("Failed to save site settings:", error);
+             console.error("Failed to save site settings:", error);
             toast({ 
                 variant: "destructive", 
                 title: "Failed to save settings",
@@ -1371,3 +1383,6 @@ export default function AdminPage() {
     </div>
   );
 }
+
+
+    
