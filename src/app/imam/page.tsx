@@ -31,7 +31,7 @@ import { generateChartData } from '@/ai/flows/generate-chart-data-flow';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
-import { Form, FormControl, FormField, FormItem, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 
 const IMGBB_API_KEY = (process.env.NEXT_PUBLIC_IMGBB_API_KEY || "").trim();
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
@@ -236,10 +236,11 @@ const NewsManager = () => {
     const ArticleForm = () => (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField control={form.control} name="title" render={({ field }) => ( <FormItem><FormControl><Input placeholder="e.g., AI Achieves Sentience" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormControl><Textarea placeholder="A short summary for previews..." {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                <FormField control={form.control} name="title" render={({ field }) => ( <FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="e.g., AI Achieves Sentience" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                <FormField control={form.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Description (for previews)</FormLabel><FormControl><Textarea placeholder="A short summary for previews..." {...field} /></FormControl><FormMessage /></FormItem> )}/>
                 <FormField control={form.control} name="content" render={({ field }) => (
                     <FormItem>
+                        <FormLabel>Full Article Content</FormLabel>
                         <FormControl>
                             <Textarea placeholder="Full article content..." className="min-h-[300px] text-sm" {...field} />
                         </FormControl>
@@ -247,7 +248,7 @@ const NewsManager = () => {
                         <FormMessage />
                     </FormItem>
                 )}/>
-                <FormField control={form.control} name="externalUrl" render={({ field }) => ( <FormItem><FormControl><Input placeholder="https://example.com/full-article (Optional)" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                <FormField control={form.control} name="externalUrl" render={({ field }) => ( <FormItem><FormLabel>External URL (Optional)</FormLabel><FormControl><Input placeholder="https://example.com/full-article" {...field} /></FormControl><FormMessage /></FormItem> )}/>
                 
                 <div>
                     <Label htmlFor="imageUrl">Image URL</Label>
@@ -264,17 +265,22 @@ const NewsManager = () => {
                     )}
                 </div>
                 
-                <FormField control={form.control} name="imageAiHint" render={({ field }) => ( <FormItem><FormControl><Input placeholder="e.g., quantum computer" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                <FormField control={form.control} name="imageAiHint" render={({ field }) => ( <FormItem><FormLabel>Image AI Hint</FormLabel><FormControl><Input placeholder="e.g., quantum computer" {...field} /></FormControl><FormMessage /></FormItem> )}/>
 
-                <div>
-                    <Label>Category</Label>
-                    <Select onValueChange={(v: any) => form.setValue('category', v)} defaultValue={editingArticle?.category}>
-                        <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
-                        <SelectContent>
-                            {newsCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
+                <FormField control={form.control} name="category" render={({ field }) => (
+                    <FormItem>
+                         <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {newsCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )}/>
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={closeDialog}>Cancel</Button>
                     <Button type="submit" disabled={isSubmitting || isUploading}>
@@ -1126,7 +1132,7 @@ const TimelinesManager = () => {
 const AdminDashboard = () => (
     <main className="container mx-auto px-4 py-12 sm:px-6">
         <div className="mb-8">
-            <h1 className="text-4xl font-black">Admin Dashboard</h1>
+            <h1 className="text-4xl font-extrabold">Admin Dashboard</h1>
             <p className="text-muted-foreground">Manage all content across the site.</p>
         </div>
         <Tabs defaultValue="news" className="w-full">

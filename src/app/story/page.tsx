@@ -60,7 +60,7 @@ export default function StoryPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="text-4xl font-black md:text-7xl animate-gradient"
+              className="text-4xl font-extrabold md:text-7xl animate-gradient"
             >
               The Story of Tech Ink
             </motion.h1>
@@ -107,7 +107,7 @@ export default function StoryPage() {
               viewport={{ once: true, amount: 0.5 }}
               transition={{ duration: 0.5, delay: 0.3, ease: "easeOut" }}
             >
-              <h2 className="text-3xl md:text-4xl font-black">Let's Build This Thing. Together.</h2>
+              <h2 className="text-3xl md:text-4xl font-extrabold">Let's Build This Thing. Together.</h2>
               <p className="mt-4 max-w-xl mx-auto text-muted-foreground text-lg">
                 Join the conversation. Share your insights. Be part of the foundation.
               </p>

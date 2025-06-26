@@ -1,21 +1,20 @@
 
-"use client";
-
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { type Article } from '@/ai/schemas/article-schema';
 import { notFound } from 'next/navigation';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import Image from 'next/image';
-import { Badge } from '@/components/ui/badge';
-import { Calendar, Share2, Loader2 } from 'lucide-react';
-import { useEffect, useState, Suspense } from 'react';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import ReactMarkdown from 'react-markdown';
+import { Loader2 } from 'lucide-react';
+import { Suspense } from 'react';
+import { type Metadata, type ResolvingMetadata } from 'next';
+import ArticleClientPage from './client-page';
 
 type ArticleWithId = Article & { id: string; createdAt?: any };
+
+const siteConfig = {
+  ogImage: "https://res.cloudinary.com/dd1czj85j/image/upload/v1750851092/WhatsApp_Image_2025-06-23_at_11.34.37_c2bbc731_epfvrj.jpg",
+};
 
 async function getArticle(id: string): Promise<ArticleWithId | null> {
   try {
@@ -29,73 +28,44 @@ async function getArticle(id: string): Promise<ArticleWithId | null> {
   }
 }
 
-function ArticleClientPage({ article }: { article: ArticleWithId }) {
-    const { toast } = useToast();
-    const publishDate = article.createdAt?.toDate() 
-        ? new Date(article.createdAt.toDate()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-        : 'Recently published';
+export async function generateMetadata({ params }: { params: { id: string } }, parent: ResolvingMetadata): Promise<Metadata> {
+  const id = params.id;
+  const article = await getArticle(id);
+  const previousImages = (await parent).openGraph?.images || [];
 
-    const handleShare = async () => {
-        const shareUrl = window.location.href;
-        if (navigator.share) {
-            await navigator.share({ title: article.title, text: article.description, url: shareUrl }).catch(e => console.error(e));
-        } else {
-            navigator.clipboard.writeText(shareUrl);
-            toast({ title: "Link Copied!", description: "Article link copied to your clipboard." });
-        }
-    };
+  if (!article) {
+    return {
+      title: 'Article Not Found',
+    }
+  }
   
-    return (
-        <article className="container mx-auto max-w-4xl px-4 sm:px-6 py-12 md:py-24">
-          <header className="mb-8">
-            <div className="flex justify-between items-start">
-                <Badge variant="outline" className="mb-4 text-primary border-primary">{article.category}</Badge>
-                <Button onClick={handleShare} variant="outline" size="sm"><Share2 className="mr-2 h-4 w-4" /> Share</Button>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-black text-foreground mb-4">{article.title}</h1>
-            <div className="flex items-center gap-4 text-muted-foreground text-sm">
-                <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>{publishDate}</span>
-                </div>
-            </div>
-          </header>
-          <div className="relative aspect-video w-full overflow-hidden rounded-2xl shadow-lg mb-8">
-            <Image src={article.imageUrl} alt={article.title} fill className="object-cover" />
-          </div>
-          <div className="prose prose-lg dark:prose-invert max-w-none mx-auto">
-            <ReactMarkdown>{article.content || article.description}</ReactMarkdown>
-          </div>
-        </article>
-    );
+  const ogImage = article.imageUrl ? [ { url: article.imageUrl, width: 800, height: 400, alt: article.title } ] : [ { url: siteConfig.ogImage, width: 1200, height: 630, alt: "Tech Ink Insights" } ];
+
+  return {
+    title: article.title,
+    description: article.description,
+    openGraph: {
+      title: article.title,
+      description: article.description,
+      images: [...ogImage, ...previousImages],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: article.title,
+      description: article.description,
+      images: ogImage.map(i => i.url),
+    }
+  }
 }
 
-function ArticlePageWrapper({ params }: { params: { id: string }}) {
-    const [article, setArticle] = useState<ArticleWithId | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        getArticle(params.id).then(data => {
-            if (!data) notFound();
-            setArticle(data);
-            setIsLoading(false);
-        });
-    }, [params.id]);
+export default async function Page({ params }: { params: { id: string }}) {
+    const article = await getArticle(params.id);
 
-    if (isLoading) {
-        return (
-            <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            </div>
-        );
+    if (!article) {
+        notFound();
     }
     
-    if(!article) return null;
-
-    return <ArticleClientPage article={article} />;
-}
-
-export default function Page({ params }: { params: { id: string }}) {
     return (
          <div className="flex min-h-screen flex-col">
             <SiteHeader />
@@ -105,7 +75,7 @@ export default function Page({ params }: { params: { id: string }}) {
                         <Loader2 className="h-12 w-12 animate-spin text-primary" />
                     </div>
                 }>
-                    <ArticlePageWrapper params={params} />
+                    <ArticleClientPage article={article} />
                 </Suspense>
             </main>
             <SiteFooter />

@@ -2,8 +2,9 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Loader2, Newspaper, Share2 } from "lucide-react";
+import { Newspaper } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { NewsCube3d } from "@/components/news-cube-3d";
@@ -12,12 +13,6 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Article } from "@/ai/flows/generate-articles-flow";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import ReactMarkdown from 'react-markdown';
-import { useToast } from "@/hooks/use-toast";
-
 
 type ArticleWithId = Article & { id: string };
 
@@ -27,19 +22,6 @@ export default function NewsPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedArticle, setSelectedArticle] = useState<ArticleWithId | null>(null);
-  const { toast } = useToast();
-
-  const handleShare = async (article: ArticleWithId) => {
-    const shareUrl = `${window.location.origin}/news/${article.id}`;
-    if (navigator.share) {
-        await navigator.share({ title: article.title, text: article.description, url: shareUrl }).catch(e => console.error(e));
-    } else {
-        navigator.clipboard.writeText(shareUrl);
-        toast({ title: "Link Copied!", description: "Article link copied to your clipboard." });
-    }
-  };
-
 
   useEffect(() => {
     const fetchArticles = async () => {
@@ -138,9 +120,9 @@ export default function NewsPage() {
                                         {cardContent}
                                     </a>
                                 ) : (
-                                    <button onClick={() => setSelectedArticle(item)} className={`${commonCardClasses} text-left`}>
-                                        {cardContent}
-                                    </button>
+                                    <Link href={`/news/${item.id}`} className={commonCardClasses}>
+                                      {cardContent}
+                                    </Link>
                                 )}
                                 </div>
                             );
@@ -169,34 +151,6 @@ export default function NewsPage() {
             <NewsCube3d />
         </section>
       </main>
-
-       <Dialog open={!!selectedArticle} onOpenChange={(isOpen) => !isOpen && setSelectedArticle(null)}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-            {selectedArticle && (
-                <>
-                    <DialogHeader className="pr-6 pt-6">
-                        <Badge variant="outline" className="mb-4 text-primary border-primary self-start">{selectedArticle.category}</Badge>
-                        <DialogTitle className="text-3xl text-left">{selectedArticle.title}</DialogTitle>
-                        <DialogDescription className="sr-only">{selectedArticle.description}</DialogDescription>
-                    </DialogHeader>
-                    <div className="flex-1 overflow-hidden mt-4">
-                      <ScrollArea className="h-full pr-6">
-                          <div className="relative aspect-video w-full overflow-hidden rounded-lg my-4">
-                              <Image src={selectedArticle.imageUrl} alt={selectedArticle.title} fill className="object-cover" />
-                          </div>
-                          <div className="prose prose-lg dark:prose-invert max-w-none mx-auto">
-                              <ReactMarkdown>{selectedArticle.content || selectedArticle.description}</ReactMarkdown>
-                          </div>
-                      </ScrollArea>
-                    </div>
-                     <DialogFooter className="border-t pt-4">
-                        <Button variant="outline" onClick={() => handleShare(selectedArticle)}><Share2 className="mr-2" />Share Article</Button>
-                    </DialogFooter>
-                </>
-            )}
-        </DialogContent>
-    </Dialog>
-
       <SiteFooter />
     </div>
   );

@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Bar, BarChart, Line, LineChart, Area, AreaChart, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
-import { ArrowRight, Bot, Loader2, User, Quote as QuoteIcon, Share2 } from "lucide-react";
+import { ArrowRight, Bot, Loader2, User, Quote as QuoteIcon, Share2, AlertTriangle } from "lucide-react";
 import { type Insight } from "@/ai/flows/generate-insights-flow";
 import { chatWithChart } from "@/ai/flows/chat-with-chart-flow";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "./ui/separator";
 import { useAuth } from "@/contexts/auth-context";
+import Link from "next/link";
 
 const chatFormSchema = z.object({
   question: z.string().min(5, { message: "Question must be at least 5 characters." }),
@@ -38,6 +39,7 @@ export function InsightItem({ insight }: InsightItemProps) {
   });
 
   const handleShare = async () => {
+    if (typeof window === 'undefined') return;
     const shareUrl = `${window.location.origin}/insights?insight=${insight.id}`;
     if (navigator.share) {
         await navigator.share({ title: insight.title, text: insight.description, url: shareUrl }).catch(error => console.error('Error sharing:', error));
@@ -89,7 +91,10 @@ export function InsightItem({ insight }: InsightItemProps) {
   }
 
   const renderChart = () => {
-    const dataKeys = insight.data && insight.data.length > 0 ? Object.keys(insight.data[0]).filter(k => k !== 'name') : [];
+    if (!insight.data || !Array.isArray(insight.data) || insight.data.length === 0) {
+        return null; // Should be caught by renderContent, but as a safeguard.
+    }
+    const dataKeys = Object.keys(insight.data[0]).filter(k => k !== 'name');
 
     switch (insight.type) {
       case 'bar':
@@ -145,27 +150,48 @@ export function InsightItem({ insight }: InsightItemProps) {
         </blockquote>
       );
     }
+    
+    if (insight.type !== 'quote' && (!insight.data || !Array.isArray(insight.data) || insight.data.length === 0)) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground bg-muted/50 rounded-lg">
+                <AlertTriangle className="h-8 w-8 text-destructive mb-2" />
+                <p className="font-semibold">Chart Data Not Available</p>
+                <p className="text-sm">The data for this insight could not be loaded.</p>
+            </div>
+        );
+    }
 
-    const dataKeys = insight.data && insight.data.length > 0 ? Object.keys(insight.data[0]).filter(k => k !== 'name') : [];
+    const dataKeys = Object.keys(insight.data[0]).filter(k => k !== 'name');
 
-    // Create a defensive copy and provide default colors if they are missing
-    const augmentedConfig: { [key: string]: any } = insight.config ? JSON.parse(JSON.stringify(insight.config)) : {};
-    dataKeys.forEach((key, index) => {
-        if (!augmentedConfig[key]) {
-            augmentedConfig[key] = { label: key };
-        }
-        if (!augmentedConfig[key].color) {
-            augmentedConfig[key].color = `hsl(var(--chart-${(index % 5) + 1}))`;
-        }
-    });
+    let chartConfig: ChartConfig = {};
+    try {
+        const parsedConfig = typeof insight.config === 'string' ? JSON.parse(insight.config) : insight.config;
+        const augmentedConfig: { [key: string]: any } = parsedConfig ? JSON.parse(JSON.stringify(parsedConfig)) : {};
+        dataKeys.forEach((key, index) => {
+            if (!augmentedConfig[key]) {
+                augmentedConfig[key] = { label: key };
+            }
+            if (!augmentedConfig[key].color) {
+                augmentedConfig[key].color = `hsl(var(--chart-${(index % 5) + 1}))`;
+            }
+        });
 
-    const chartConfig = augmentedConfig ? Object.fromEntries(
-        Object.entries(augmentedConfig).map(([key, value]) => [key.replace(/[^a-zA-Z0-9]/g, ''), value])
-    ) : {};
-
+        chartConfig = Object.fromEntries(
+            Object.entries(augmentedConfig).map(([key, value]) => [key.replace(/[^a-zA-Z0-9]/g, ''), value])
+        );
+    } catch (e) {
+         console.error("Failed to parse chart config:", e);
+         // Gracefully handle the error by creating a default config
+         dataKeys.forEach((key, index) => {
+            chartConfig[key.replace(/[^a-zA-Z0-9]/g, '')] = {
+                label: key,
+                color: `hsl(var(--chart-${(index % 5) + 1}))`
+            }
+         });
+    }
 
     return (
-      <ChartContainer config={chartConfig as ChartConfig} className="h-[300px] w-full">
+      <ChartContainer config={chartConfig} className="h-[300px] w-full">
         {renderChart()}
       </ChartContainer>
     );
@@ -175,16 +201,22 @@ export function InsightItem({ insight }: InsightItemProps) {
     <Card className="bg-card/40 shadow-lg border-border/60 animate-in fade-in-50">
       <CardHeader>
         <div className="flex justify-between items-start">
-            <div className="flex gap-2 items-center">
-                {insight.type === 'quote' && <QuoteIcon className="h-6 w-6 text-primary" />}
-                <CardTitle>{insight.title}</CardTitle>
+            <div className="flex-1 mr-4">
+                {insight.type === 'quote' ? (
+                  <div className="flex items-center gap-2">
+                    <QuoteIcon className="h-6 w-6 text-primary flex-shrink-0" />
+                    <CardTitle>{insight.title}</CardTitle>
+                  </div>
+                ) : (
+                  <CardTitle>{insight.title}</CardTitle>
+                )}
+                <CardDescription className="mt-1">{insight.description}</CardDescription>
             </div>
              <Button variant="ghost" size="icon" onClick={handleShare}>
                 <Share2 className="h-5 w-5" />
                 <span className="sr-only">Share Insight</span>
             </Button>
         </div>
-        <CardDescription>{insight.description}</CardDescription>
       </CardHeader>
       <CardContent>
         {renderContent()}

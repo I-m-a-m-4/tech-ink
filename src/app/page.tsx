@@ -64,7 +64,7 @@ export default async function Home() {
       <SiteHeader />
 
       <main className="flex-1">
-        <section id="hero" className="container mx-auto grid place-items-center gap-6 px-4 py-20 text-center sm:px-6 md:py-32">
+        <section id="hero" className="container mx-auto grid place-items-center gap-6 px-4 sm:px-6 py-20 text-center md:py-32">
           <div className="relative">
             <div className="absolute -inset-2">
               <div className="mx-auto h-full w-full max-w-sm rounded-full bg-primary/50 opacity-50 blur-[100px]" />
@@ -77,10 +77,10 @@ export default async function Home() {
           </p>
         </section>
 
-        <section id="interactive-tv" className="container mx-auto px-4 py-12 sm:px-6 md:py-24">
+        <section id="interactive-tv" className="container mx-auto px-4 sm:px-6 py-12 md:py-24">
            <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2">
                 <div className="space-y-4 text-center lg:text-left">
-                    <h2 className="text-4xl font-black md:text-6xl animate-gradient">Decoding the Future</h2>
+                    <h2 className="text-4xl font-extrabold md:text-6xl animate-gradient">Decoding the Future</h2>
                     <p className="text-lg text-muted-foreground">
                        We go deeper than the news cycle, analyzing the trends and technologies that will shape our world. Here, data reveals the narrative, and insights spark the conversation.
                     </p>
@@ -91,9 +91,9 @@ export default async function Home() {
             </div>
         </section>
 
-        <section id="latest-news" className="container mx-auto flex flex-col items-center justify-center px-4 py-12 sm:px-6 md:py-24">
+        <section id="latest-news" className="container mx-auto flex flex-col items-center justify-center px-4 sm:px-6 py-12 md:py-24">
            <div className="mx-auto mb-12 max-w-xl text-center">
-             <h2 className="text-4xl font-black md:text-6xl animate-gradient">Latest In Tech</h2>
+             <h2 className="text-4xl font-extrabold md:text-6xl animate-gradient">Latest In Tech</h2>
              <p className="mt-4 text-lg text-muted-foreground">
               Explore the latest articles and discussions from our team.
              </p>
@@ -148,13 +148,13 @@ export default async function Home() {
           </div>
         </section>
 
-        <section id="blueprint-for-tomorrow" className="container mx-auto px-4 py-12 sm:px-6 md:py-24">
+        <section id="blueprint-for-tomorrow" className="container mx-auto px-4 sm:px-6 py-12 md:py-24">
            <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2">
                 <div className="flex h-[350px] w-full items-center justify-center lg:h-[450px]">
                     <CircuitPen3d />
                 </div>
                 <div className="space-y-4 text-center lg:text-left">
-                    <h2 className="text-4xl font-black md:text-6xl animate-gradient">Where Insight Takes Form</h2>
+                    <h2 className="text-4xl font-extrabold md:text-6xl animate-gradient">Where Insight Takes Form</h2>
                     <p className="text-lg text-muted-foreground">
                         Tech Ink is more than a news source—it's a shared space for curiosity. We believe that the most powerful ideas emerge when data-driven analysis meets creative human intellect. Join us in sketching out what's next.
                     </p>
@@ -166,7 +166,7 @@ export default async function Home() {
           <div className="container mx-auto px-4 sm:px-6">
             <div className="mx-auto max-w-6xl">
                 <div className="mx-auto max-w-xl text-center">
-                <h2 className="text-4xl font-black">Our Commitment</h2>
+                <h2 className="text-4xl font-extrabold">Our Commitment</h2>
                 <p className="mt-4 text-muted-foreground">
                     We’re committed to keeping this group focused on high-quality content, with no tolerance for spam or irrelevant posts. Our goal is to provide a valuable resource for our members.
                 </p>
@@ -197,9 +197,9 @@ export default async function Home() {
           </div>
         </section>
 
-        <section id="ai-summarizer" className="container mx-auto px-4 py-12 sm:px-6 md:py-24">
+        <section id="ai-summarizer" className="container mx-auto px-4 sm:px-6 py-12 md:py-24">
           <div className="mx-auto max-w-xl text-center">
-            <h2 className="text-4xl font-black">AI-Powered Summarizer</h2>
+            <h2 className="text-4xl font-extrabold">AI-Powered Summarizer</h2>
             <p className="mt-4 text-muted-foreground">
               Have a long tech article? Paste it here and let our AI give you the key takeaways in seconds.
             </p>
@@ -211,7 +211,7 @@ export default async function Home() {
 
         <section id="community" className="container mx-auto px-4 sm:px-6 py-12 md:py-24">
            <div className="mx-auto max-w-xl text-center">
-             <h2 className="text-4xl font-black">Join Our Community</h2>
+             <h2 className="text-4xl font-extrabold">Join Our Community</h2>
              <p className="mt-4 text-muted-foreground">
                 Connect with other tech enthusiasts and get the latest updates by joining our WhatsApp group.
              </p>
