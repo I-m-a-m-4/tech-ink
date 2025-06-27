@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { Shield } from 'lucide-react';
 import { ClientLink } from "./client-link";
 import { Skeleton } from "./ui/skeleton";
+import { ScrollArea } from "./ui/scroll-area";
 
 const navLinks = [
     { href: "/news", label: "News", icon: <Icons.news className="h-5 w-5" /> },
@@ -140,6 +141,14 @@ export function SiteHeader() {
                             <span>Settings</span>
                         </ClientLink>
                     </DropdownMenuItem>
+                    {isAdmin && (
+                        <DropdownMenuItem asChild>
+                           <ClientLink href="/imam">
+                                <Shield className="mr-2 h-4 w-4" />
+                                <span>Admin Panel</span>
+                            </ClientLink>
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={handleSignOut}>
                     <Icons.logout className="mr-2 h-4 w-4" />
                     <span>Log out</span>
@@ -186,12 +195,13 @@ export function SiteHeader() {
                         </ClientLink>
                     </SheetClose>
                   </div>
-                  <nav className="flex flex-col gap-2 p-4">
-                      <NavLinkItems isMobile={true} closeSheet={() => setIsMobileSheetOpen(false)} />
-                  </nav>
-                  <Separator />
-                   <div className="p-4">
-                     {user ? (
+                  <ScrollArea className="flex-1">
+                    <nav className="flex flex-col gap-2 p-4">
+                        <NavLinkItems isMobile={true} closeSheet={() => setIsMobileSheetOpen(false)} />
+                    </nav>
+                    <Separator />
+                    <div className="p-4">
+                        {user ? (
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center gap-3">
                                 <Avatar className="h-10 w-10">
@@ -203,7 +213,7 @@ export function SiteHeader() {
                                     <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                                 </div>
                             </div>
-                             {isAdmin ? (
+                            {isAdmin ? (
                                 <div className="flex items-center gap-2 text-lg font-semibold text-amber-400 p-4 rounded-lg bg-muted">
                                     <Shield className="h-5 w-5" />
                                     <span>Admin Account</span>
@@ -214,32 +224,33 @@ export function SiteHeader() {
                                     <span>{profile?.points ?? 0} Insight Points</span>
                                 </div>
                             )}
-                             <SheetClose asChild>
+                            <SheetClose asChild>
                                 <Button onClick={handleSignOut} variant="outline" className="w-full">Log out</Button>
                             </SheetClose>
                         </div>
-                     ) : (
+                        ) : (
                         <div className="grid gap-2">
                             <SheetClose asChild>
                                 <Button variant="outline" asChild><ClientLink href="/login">Login</ClientLink></Button>
                             </SheetClose>
-                             <SheetClose asChild>
+                            <SheetClose asChild>
                                 <Button asChild><ClientLink href="/signup">Sign Up</ClientLink></Button>
                             </SheetClose>
                         </div>
-                     )}
+                        )}
                     </div>
-                    <div className="mt-auto flex flex-col items-center gap-4 p-6 border-t">
-                        <SheetClose asChild>
-                            <Button variant="secondary" asChild className="w-full">
-                                <ClientLink href="/settings">Settings</ClientLink>
-                            </Button>
-                        </SheetClose>
-                      <BackgroundSwitcher />
-                      <div className="text-center text-xs text-muted-foreground">
-                          &copy; {new Date().getFullYear()} Tech Ink Insights
-                      </div>
+                  </ScrollArea>
+                  <div className="mt-auto flex flex-col items-center gap-4 p-6 border-t">
+                      <SheetClose asChild>
+                          <Button variant="secondary" asChild className="w-full">
+                              <ClientLink href="/settings">Settings</ClientLink>
+                          </Button>
+                      </SheetClose>
+                    <BackgroundSwitcher />
+                    <div className="text-center text-xs text-muted-foreground">
+                        &copy; {new Date().getFullYear()} Tech Ink Insights
                     </div>
+                  </div>
                 </SheetContent>
               </Sheet>
             </div>

@@ -114,48 +114,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const postRef = doc(db, collectionName, postId);
     try {
-      await runTransaction(db, async (transaction) => {
-        const postDoc = await transaction.get(postRef);
-        if (!postDoc.exists()) throw new Error("Post does not exist.");
-        
-        const postData = postDoc.data();
-        const poll = postData.poll as (Poll & { voters?: Record<string, string> }) | undefined;
+        await runTransaction(db, async (transaction) => {
+            const postDoc = await transaction.get(postRef);
+            if (!postDoc.exists()) throw new Error("Post does not exist.");
+            
+            const postData = postDoc.data();
+            const poll = postData.poll as (Poll & { voters?: Record<string, string> }) | undefined;
 
-        if (!poll) throw new Error("This post does not have a poll.");
-        if (poll.voters && poll.voters[user.uid]) throw new Error("You have already voted on this poll.");
+            if (!poll) throw new Error("This post does not have a poll.");
+            
+            const voters = poll.voters || {};
+            const oldVote = voters[user.uid];
 
-        const voteField = `poll.options.${optionText}`;
-        const voterField = `poll.voters.${user.uid}`;
-        
-        transaction.update(postRef, {
-            [voteField]: increment(1),
-            [voterField]: optionText
+            if (oldVote === optionText) return;
+            
+            const updates: { [key: string]: any } = {};
+
+            if (oldVote) {
+                updates[`poll.options.${oldVote}`] = increment(-1);
+            }
+
+            updates[`poll.options.${optionText}`] = increment(1);
+            updates[`poll.voters.${user.uid}`] = optionText;
+
+            transaction.update(postRef, updates);
         });
-      });
       
-      setVotedOnPolls(prev => new Map(prev).set(postId, optionText));
-      addPoints(2);
+        setVotedOnPolls(prev => new Map(prev).set(postId, optionText));
+        if (!votedOnPolls.has(postId)) {
+            addPoints(2);
+        }
 
     } catch (error) {
         console.error("Error casting vote:", error);
-        if (error instanceof Error && error.message.includes("already voted")) {
-          setVotedOnPolls(prev => new Map(prev).set(postId, "voted"));
-        }
         throw error;
     }
-  }, [user, addPoints]);
+  }, [user, addPoints, votedOnPolls]);
 
   useEffect(() => {
     if (initializationError || !auth || !db) {
       setLoading(false);
       return;
     }
-
+    
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      let isStillMounted = true;
       try {
         if (currentUser) {
-            if (!isStillMounted) return;
             setUser(currentUser);
 
             if (currentUser.email?.toLowerCase() === ADMIN_EMAIL) {
@@ -174,8 +178,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 getDocs(likesQuery)
             ]);
 
-            if (!isStillMounted) return;
-
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 setProfile({ points: 0, publicName: true, ...data } as UserProfile);
@@ -191,11 +193,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 await batch.commit();
                 
                 setProfile(newProfile);
-                setVotedOnPolls(new Map());
             }
 
             const userLikedPosts = new Set(likesSnap.docs.map(d => d.data().postId));
             setLikedPosts(userLikedPosts);
+            // Voted polls must be derived from fetched post data, so we reset here and let components handle it.
+            setVotedOnPolls(new Map());
+
         } else {
           setUser(null);
           setProfile(null);
@@ -204,14 +208,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Error in onAuthStateChanged:", error);
-        if (isStillMounted && !currentUser) {
+        if (currentUser && !profile) {
+            setUser(currentUser);
+            setProfile({
+                handle: `@${(currentUser.displayName || currentUser.email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()}`,
+                points: 0,
+                publicName: true,
+            });
+        } else if (!currentUser) {
             setUser(null);
             setProfile(null);
         }
       } finally {
-         if (isStillMounted) setLoading(false);
+        setLoading(false);
       }
-      return () => { isStillMounted = false; };
     });
 
     return () => unsubscribe();

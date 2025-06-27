@@ -33,8 +33,9 @@ import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClientLink } from "@/components/client-link";
+import { motion } from 'framer-motion';
 
 
 const BATCH_SIZE = 5;
@@ -191,7 +192,7 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
         setIsAnalysisLoading(true);
         addPoints(10);
         try {
-            const result = await analyzePost({ headline: item.headline, content: item.content });
+            const result = await analyzePost({ headline: item.headline, content: item.content ?? '' });
             setAnalysisContent(result.analysis);
         } catch (e) {
             setAnalysisContent("Sorry, I was unable to analyze this post at the moment.");
@@ -449,7 +450,6 @@ function FeedPageComponent() {
   const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", imageUrl: "", poll: { options: [{text: ""}, {text: ""}] } } });
   const [isUploading, setIsUploading] = useState(false);
   
-
   const { fields, append, remove } = useFieldArray({
     control: addPostForm.control,
     name: "poll.options",
@@ -496,6 +496,19 @@ function FeedPageComponent() {
   }, []);
 
   useEffect(() => { fetchFeed(); }, [fetchFeed]);
+
+  const handleTogglePoll = () => {
+    setShowPoll(prev => {
+        const isNowShowingPoll = !prev;
+        if (isNowShowingPoll) {
+            addPostForm.setValue('content', '');
+            addPostForm.clearErrors('content');
+        } else {
+            addPostForm.setValue('poll', undefined);
+        }
+        return isNowShowingPoll;
+    });
+  };
 
   const onAddPostSubmit: SubmitHandler<AddPostFormValues> = async (values) => {
     if (!user || !profile || !db) { toast({ variant: "destructive", title: "You must be logged in to post." }); return; }
@@ -703,7 +716,7 @@ function FeedPageComponent() {
                                     </label>
                                 </TooltipTrigger><TooltipContent><p>Upload Image</p></TooltipContent></Tooltip></TooltipProvider>
                                 <TooltipProvider><Tooltip><TooltipTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => setShowPoll(!showPoll)}>
+                                    <Button type="button" variant="ghost" size="icon" onClick={handleTogglePoll}>
                                         <BarChart3 className="h-5 w-5" />
                                     </Button>
                                 </TooltipTrigger><TooltipContent><p>{showPoll ? 'Switch to Post' : 'Add Poll'}</p></TooltipContent></Tooltip></TooltipProvider>
@@ -739,8 +752,18 @@ const PollDisplay = ({ poll, userVote, onVote, hasVoted }: { poll: Poll; userVot
 
             if (hasVoted) {
                 return (
-                    <div key={index} className="relative w-full h-10 flex items-center rounded-md overflow-hidden border">
-                        <Progress value={percentage} className="absolute h-full rounded-md" />
+                    <motion.div
+                        key={index}
+                        initial={{ opacity: 0.8 }}
+                        animate={{ opacity: 1 }}
+                        className="relative w-full h-10 flex items-center rounded-md overflow-hidden border"
+                    >
+                        <motion.div
+                            className="absolute h-full bg-primary/20 rounded-md"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percentage}%`}}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                        />
                         <div className="relative z-10 flex items-center justify-between w-full px-4">
                             <div className="flex items-center gap-2 font-semibold">
                                {isThisTheVotedOption && <CheckCircle2 className="h-4 w-4 text-primary" />} 
@@ -748,19 +771,20 @@ const PollDisplay = ({ poll, userVote, onVote, hasVoted }: { poll: Poll; userVot
                             </div>
                             <span className="font-bold">{percentage}%</span>
                         </div>
-                    </div>
+                    </motion.div>
                 );
             }
     
             return (
-                <Button
-                    key={index}
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => onVote(optionText)}
-                >
-                    {optionText}
-                </Button>
+                 <motion.div key={index} whileTap={{ scale: 0.98 }}>
+                    <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => onVote(optionText)}
+                    >
+                        {optionText}
+                    </Button>
+                </motion.div>
             );
         })}
       </div>

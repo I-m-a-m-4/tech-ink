@@ -16,7 +16,14 @@ import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon, BadgeCheck, Search, ListFilter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateArticles } from '@/ai/flows/generate-articles-flow';
@@ -433,8 +440,7 @@ const NewsManager = () => {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(article.id)}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
+                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(article.id)}>Delete</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                             </CardFooter>

@@ -192,8 +192,8 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
                 <TableCell>
                     <ClientLink href={`/u/${user.handle.substring(1)}`} className="flex items-center gap-3 group">
                         <Avatar>
-                            <AvatarImage src={user.avatar} alt={user.displayName} />
-                            <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
+                            <AvatarImage src={user.avatar} alt={user.handle} />
+                            <AvatarFallback>{user.handle.charAt(1) || user.displayName.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div>
                              <div className="flex items-center gap-1.5">
