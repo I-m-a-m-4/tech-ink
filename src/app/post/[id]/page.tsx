@@ -1,164 +1,160 @@
 
-"use client";
-
-import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/auth-context";
-import { useToast } from "@/hooks/use-toast";
-import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, writeBatch, doc, increment, type Timestamp } from "firebase/firestore";
-import { useForm, SubmitHandler } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Loader2, User, Send } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
+import { doc, getDoc, Timestamp, collection, query, orderBy } from 'firebase/firestore';
+import { db, initializationError } from '@/lib/firebase';
+import { notFound } from 'next/navigation';
+import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
+import { Loader2, Share2, Bot, Eye, MessageCircle, Heart } from 'lucide-react';
+import { Suspense } from 'react';
+import { type Metadata, type ResolvingMetadata } from 'next';
+import { type SocialFeedItem } from '@/ai/schemas/social-feed-item-schema';
+import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { formatDistanceToNow } from 'date-fns';
-import { Separator } from "@/components/ui/separator";
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import Link from 'next/link';
-import type { PostWithId } from './page';
+import { formatDistanceToNow } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
+import { Icons } from '@/components/icons';
+import { PostComments } from './comments-client';
+import type { PostWithId } from '@/types/post';
 
-type Comment = {
-    id: string;
-    text: string;
-    author: string;
-    avatar: string;
-    userId: string;
-    createdAt: Timestamp;
+async function getPost(id: string): Promise<PostWithId | null> {
+  if (initializationError || !db) return null;
+
+  try {
+    let docSnap = await getDoc(doc(db, "feedItems", id));
+    let collectionName: 'feedItems' | 'dailyTopics' = 'feedItems';
+
+    if (!docSnap.exists()) {
+      docSnap = await getDoc(doc(db, "dailyTopics", id));
+      collectionName = 'dailyTopics';
+    }
+
+    if (!docSnap.exists()) {
+      return null;
+    }
+    
+    const data = docSnap.data();
+    return {
+        id: docSnap.id,
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : undefined,
+        collectionName,
+        likes: data.likes || 0,
+    } as PostWithId;
+  } catch (error) {
+    console.error("Error fetching post:", error);
+    return null;
+  }
 }
 
-const commentFormSchema = z.object({
-    commentText: z.string().min(1, { message: "Comment cannot be empty." }).max(280, { message: "Comment is too long." }),
-});
-type CommentFormValues = z.infer<typeof commentFormSchema>;
+export async function generateMetadata({ params }: { params: { id: string } }, parent: ResolvingMetadata): Promise<Metadata> {
+  const post = await getPost(params.id);
+  
+  if (!post) {
+    return { title: 'Post Not Found' }
+  }
 
-const getDisplayTime = (item: Comment) => {
-    if (item.createdAt && typeof item.createdAt.toDate === 'function') {
-        return formatDistanceToNow(item.createdAt.toDate(), { addSuffix: true });
+  const parentMetadata = await parent;
+  const siteConfig = {
+    name: "Tech Ink Insights",
+    url: "https://tech-ink.web.app",
+    ogImage: "https://res.cloudinary.com/dd1czj85j/image/upload/v1750851092/WhatsApp_Image_2025-06-23_at_11.34.37_c2bbc731_epfvrj.jpg",
+    description: "An insight engine, not just a news site...",
+  };
+  
+  const ogImage = post.imageUrl 
+    ? [{ url: post.imageUrl, width: 1200, height: 630, alt: post.headline }]
+    : parentMetadata.openGraph?.images || [{ url: siteConfig.ogImage }];
+
+  const description = post.content.substring(0, 155) + (post.content.length > 155 ? '...' : '');
+
+  return {
+    title: post.headline,
+    description: description,
+    openGraph: {
+      title: post.headline,
+      description: description,
+      url: `${siteConfig.url}/post/${post.id}`,
+      images: ogImage,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.headline,
+      description: description,
+      images: ogImage.map(i => i.url),
     }
-    return 'Just now';
-};
+  }
+}
 
+export default async function PostPage({ params }: { params: { id: string }}) {
+    const post = await getPost(params.id);
 
-export function PostComments({ post }: { post: PostWithId }) {
-    const { user, addPoints } = useAuth();
-    const { toast } = useToast();
-    const [comments, setComments] = useState<Comment[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    if (!post) {
+        notFound();
+    }
     
-    const commentForm = useForm<CommentFormValues>({ 
-        resolver: zodResolver(commentFormSchema), 
-        defaultValues: { commentText: "" } 
-    });
+    const displayTime = post.createdAt ? formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }) : 'Just now';
 
-    useEffect(() => {
-        if (!db) return;
-        const commentsRef = collection(db, post.collectionName, post.id, "comments");
-        const q = query(commentsRef, orderBy("createdAt", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => { 
-            setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment))); 
-            setIsLoading(false); 
-        }, (error) => {
-            console.error("Error fetching comments:", error);
-            toast({ variant: "destructive", title: "Failed to load comments." });
-            setIsLoading(false); 
-        });
-
-        return () => unsubscribe();
-    }, [post.id, post.collectionName, toast]);
-
-    const handlePostComment: SubmitHandler<CommentFormValues> = async (data) => {
-        if (!user || !db) return;
-        
-        const batch = writeBatch(db);
-        const postRef = doc(db, post.collectionName, post.id);
-        const newCommentRef = doc(collection(db, post.collectionName, post.id, "comments"));
-
-        batch.set(newCommentRef, {
-            text: data.commentText,
-            author: user.displayName || "Anonymous",
-            avatar: user.photoURL || `https://source.unsplash.com/random/100x100?portrait,user`,
-            userId: user.uid,
-            createdAt: serverTimestamp(),
-        });
-        batch.update(postRef, { comments: increment(1) });
-        
-        try {
-            await batch.commit();
-            addPoints(5);
-            toast({ title: "Comment posted!" });
-            commentForm.reset();
-        } catch (error) { 
-            console.error("Comment post error:", error);
-            toast({ variant: "destructive", title: "Failed to post comment" }); 
+    const PlatformIcon = () => {
+        switch (post.platform) {
+            case 'Twitter': return <Icons.twitter className="h-5 w-5" />;
+            case 'YouTube': return <Icons.youtube className="h-5 w-5" />;
+            case 'Instagram': return <Icons.instagram className="h-5 w-5" />;
+            case 'TechInk': return <Icons.pen className="h-5 w-5" />;
+            default: return null;
         }
     };
-
+    
     return (
-        <div>
-            <Separator className="my-6" />
-            <h3 className="text-lg font-semibold mb-4">Comments ({comments.length})</h3>
-            
-            <div className="mb-6">
-                 {user ? (
-                    <Form {...commentForm}>
-                        <form onSubmit={commentForm.handleSubmit(handlePostComment)} className="flex items-center gap-2">
-                            <FormField control={commentForm.control} name="commentText" render={({ field }) => (
-                                <FormItem className="flex-1">
-                                    <FormControl>
-                                        <Input placeholder="Add a comment..." {...field} />
-                                    </FormControl>
-                                </FormItem>
-                            )} />
-                            <Button type="submit" disabled={commentForm.formState.isSubmitting} size="icon">
-                                {commentForm.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            </Button>
-                        </form>
-                    </Form>
-                ) : (
-                    <div className="text-center">
-                        <Button asChild><Link href="/login">Log in to comment</Link></Button>
+         <div className="flex min-h-screen flex-col">
+            <SiteHeader />
+            <main className="flex-1">
+                 <Suspense fallback={
+                    <div className="flex-1 flex items-center justify-center">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
                     </div>
-                )}
-            </div>
-
-            {isLoading ? (
-                <div className="space-y-4">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="flex items-center space-x-4">
-                            <div className="rounded-full bg-muted h-10 w-10 animate-pulse"></div>
-                            <div className="flex-1 space-y-2">
-                                <div className="h-4 bg-muted rounded w-1/4 animate-pulse"></div>
-                                <div className="h-4 bg-muted rounded w-3/4 animate-pulse"></div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            ) : comments.length > 0 ? (
-                <div className="space-y-4">
-                    {comments.map(comment => (
-                        <div key={comment.id} className="flex items-start gap-3">
-                            <Avatar className="h-8 w-8">
-                                <AvatarImage src={comment.avatar} />
-                                <AvatarFallback>{comment.author.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-sm">{comment.author}</span>
-                                    <span className="text-xs text-muted-foreground">{getDisplayTime(comment)}</span>
+                }>
+                    <article className="container mx-auto max-w-3xl px-4 sm:px-6 py-12 md:py-16">
+                        <Card className="bg-card/40 shadow-lg border-border/60 p-6 sm:p-8">
+                            <header className="flex items-start gap-4 mb-4">
+                                <Avatar>
+                                    <AvatarImage src={post.avatar} alt={post.author} />
+                                    <AvatarFallback>{post.author.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <Link href={`/u/${post.handle.substring(1)}`} className="font-bold hover:underline">{post.author}</Link>
+                                        <Link href={`/u/${post.handle.substring(1)}`} className="text-muted-foreground hover:underline">{post.handle}</Link>
+                                        <span className="text-muted-foreground hidden sm:inline">·</span>
+                                        <span className="text-muted-foreground">{displayTime}</span>
+                                    </div>
                                 </div>
-                                <p className="text-sm text-foreground/90">{comment.text}</p>
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                    <PlatformIcon />
+                                    <span>{post.platform}</span>
+                                </div>
+                            </header>
+                            
+                            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-4 text-balance">{post.headline}</h1>
+                            
+                            <div className="prose dark:prose-invert max-w-full mb-6">
+                                <ReactMarkdown>{post.content}</ReactMarkdown>
                             </div>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center text-muted-foreground py-8">
-                    <p>No comments yet. Be the first to start the conversation!</p>
-                </div>
-            )}
-        </div>
-    );
-}
 
+                            {post.imageUrl && (
+                                <div className="relative aspect-video w-full overflow-hidden rounded-lg my-6 shadow-lg">
+                                    <Image src={post.imageUrl} alt={post.headline} fill className="object-cover" />
+                                </div>
+                            )}
+
+                            <PostComments post={post} />
+                        </Card>
+                    </article>
+                </Suspense>
+            </main>
+            <SiteFooter />
+        </div>
+    )
+}

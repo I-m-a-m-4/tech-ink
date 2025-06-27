@@ -576,36 +576,49 @@ function FeedPageComponent() {
        {user && (
           <Dialog open={isAddPostOpen} onOpenChange={setIsAddPostOpen}>
             <DialogTrigger asChild><Button className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg" size="icon"><Plus className="h-8 w-8" /><span className="sr-only">Add Post</span></Button></DialogTrigger>
-            <DialogContent><DialogHeader><DialogTitle>Create a New Post</DialogTitle><DialogDescription>Share your latest thoughts and insights with the community.</DialogDescription></DialogHeader>
-                 <Form {...addPostForm}><form onSubmit={addPostForm.handleSubmit(onAddPostSubmit)} className="space-y-4">
-                        <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><FormLabel>Headline</FormLabel><FormControl><Input placeholder="e.g., My Thoughts on the Future of AI" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                        <FormField control={addPostForm.control} name="content" render={({ field }) => ( 
-                            <FormItem>
-                                <FormLabel>Content</FormLabel>
-                                <FormControl>
-                                    <Textarea placeholder="Share your detailed thoughts here... Markdown is supported!" className="min-h-[200px]" {...field} />
-                                </FormControl>
-                                <FormDescription className="text-right">
-                                    {(watchedContent?.length || 0)} / {POST_CHARACTER_LIMIT}
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem> 
-                        )}/>
-                        <FormField control={addPostForm.control} name="url" render={({ field }) => ( <FormItem><FormLabel>Link (Optional)</FormLabel><FormControl><Input placeholder="https://example.com" {...field} /></FormControl><FormMessage /></FormItem> )}/>
-                        <FormField control={addPostForm.control} name="imageUrl" render={({ field }) => ( 
-                            <FormItem>
-                                <FormLabel>Image URL or Embed Code (Optional)</FormLabel>
-                                <FormControl><Input placeholder="Paste image URL or embed code..." {...field} /></FormControl>
-                                {previewUrl && (
-                                    <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
-                                        <Image src={previewUrl} alt="Image preview" fill className="object-cover" />
-                                    </div>
-                                )}
-                                <FormMessage />
-                            </FormItem> 
-                        )}/>
-                        <DialogFooter><Button type="button" variant="ghost" onClick={() => setIsAddPostOpen(false)}>Cancel</Button><Button type="submit" disabled={addPostForm.formState.isSubmitting}>{addPostForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Post</Button></DialogFooter>
-                 </form></Form>
+            <DialogContent className="max-w-2xl flex flex-col h-full max-h-[90vh] p-0">
+                <DialogHeader className="p-6 pb-2">
+                    <DialogTitle>Create a New Post</DialogTitle>
+                    <DialogDescription>Share your latest thoughts and insights with the community.</DialogDescription>
+                </DialogHeader>
+                 <Form {...addPostForm}>
+                    <form onSubmit={addPostForm.handleSubmit(onAddPostSubmit)} id="add-post-form" className="flex-1 flex flex-col overflow-hidden">
+                        <ScrollArea className="flex-1 p-6 pt-0">
+                            <div className="space-y-4">
+                                <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><FormLabel>Headline</FormLabel><FormControl><Input placeholder="e.g., My Thoughts on the Future of AI" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                                <FormField control={addPostForm.control} name="content" render={({ field }) => ( 
+                                    <FormItem>
+                                        <FormLabel>Content</FormLabel>
+                                        <FormControl>
+                                            <Textarea placeholder="Share your detailed thoughts here... Markdown is supported!" className="min-h-[200px]" {...field} />
+                                        </FormControl>
+                                        <FormDescription className="text-right">
+                                            {(watchedContent?.length || 0)} / {POST_CHARACTER_LIMIT}
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem> 
+                                )}/>
+                                <FormField control={addPostForm.control} name="url" render={({ field }) => ( <FormItem><FormLabel>Link (Optional)</FormLabel><FormControl><Input placeholder="https://example.com" {...field} /></FormControl><FormMessage /></FormItem> )}/>
+                                <FormField control={addPostForm.control} name="imageUrl" render={({ field }) => ( 
+                                    <FormItem>
+                                        <FormLabel>Image URL or Embed Code (Optional)</FormLabel>
+                                        <FormControl><Input placeholder="Paste image URL or embed code..." {...field} /></FormControl>
+                                        {previewUrl && (
+                                            <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
+                                                <Image src={previewUrl} alt="Image preview" fill className="object-cover" />
+                                            </div>
+                                        )}
+                                        <FormMessage />
+                                    </FormItem> 
+                                )}/>
+                            </div>
+                        </ScrollArea>
+                    </form>
+                 </Form>
+                 <DialogFooter className="p-6 pt-2 border-t mt-auto">
+                    <Button type="button" variant="ghost" onClick={() => setIsAddPostOpen(false)}>Cancel</Button>
+                    <Button type="submit" form="add-post-form" disabled={addPostForm.formState.isSubmitting}>{addPostForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Post</Button>
+                 </DialogFooter>
             </DialogContent>
           </Dialog>
         )}
