@@ -6,7 +6,8 @@ import { SiteFooter } from '@/components/site-footer';
 import type { UserProfile } from '@/contexts/auth-context';
 import LeaderboardClientPage from './client-page';
 import { Suspense } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Award, BarChart, Rocket, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const revalidate = 0; // Ensures fresh data on every request
 
@@ -20,10 +21,7 @@ type UserData = UserProfile & {
 };
 
 async function getTopUsers(): Promise<{ data: UserData[], error: boolean }> {
-  // This function now only runs on the server.
   if (initializationError || !db) {
-    // Silently fail during build if env vars are not present.
-    // The client page will handle displaying the error message.
     return { data: [], error: true };
   }
   try {
@@ -59,10 +57,11 @@ export default async function LeaderboardPage() {
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
       <main className="flex-1">
-        <section className="container mx-auto px-4 sm:px-6 py-12 md:py-24">
+        <section className="container mx-auto px-4 sm:px-6 py-12 md:py-16">
             <div className="mx-auto max-w-4xl">
                 <div className="mx-auto mb-12 max-w-xl text-center">
-                    <h1 className="text-4xl font-extrabold md:text-6xl animate-gradient">Community Leaderboard</h1>
+                    <BarChart className="mx-auto h-12 w-12 text-primary" />
+                    <h1 className="text-4xl font-extrabold md:text-6xl animate-gradient mt-4">Community Leaderboard</h1>
                     <p className="mt-4 text-lg text-muted-foreground">
                         See who's making the biggest impact. Earn points by posting, liking, and analyzing content.
                     </p>
@@ -78,3 +77,5 @@ export default async function LeaderboardPage() {
     </div>
   );
 }
+
+    

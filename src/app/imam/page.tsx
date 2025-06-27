@@ -14,7 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from 'zod';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon } from 'lucide-react';
+import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon, BadgeCheck, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -37,6 +37,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import type { BackgroundType } from '@/contexts/background-context';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
+import type { UserProfile } from '@/contexts/auth-context';
+import { UserBadge, getRank } from '@/components/user-badge';
 
 const IMGBB_API_KEY = (process.env.NEXT_PUBLIC_IMGBB_API_KEY || "").trim();
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
@@ -75,6 +77,13 @@ const FeedItemSchema = z.object({
 });
 type FeedItemFormValues = z.infer<typeof FeedItemSchema>;
 
+type UserBadgeType = 'blue' | 'grey' | 'orange' | null;
+type UserData = UserProfile & { 
+    id: string; 
+    displayName: string;
+    email: string;
+    badge?: UserBadgeType;
+};
 type ArticleWithId = Article & { id: string };
 type InsightWithId = Insight & { id: string };
 type SocialFeedItemWithId = SocialFeedItem & { id: string, views?: number, userId?: string, comments: number };
@@ -312,7 +321,7 @@ const NewsManager = () => {
                 
                 <FormField control={form.control} name="imageUrl" render={({ field }) => (
                     <FormItem>
-                        <Label htmlFor="imageUrl">Image URL</Label>
+                        <Label htmlFor="imageUrl">Image URL or Embed Code</Label>
                         <FormControl>
                             <Input id="imageUrl" placeholder="Paste a direct image URL or ImgBB embed code" {...field} disabled={isUploading} />
                         </FormControl>
@@ -394,9 +403,11 @@ const NewsManager = () => {
                     {articles.map((article) => (
                         <Card key={article.id} className="flex flex-col">
                             <CardHeader>
-                                <div className="relative aspect-video w-full overflow-hidden rounded-t-lg">
-                                    <Image src={article.imageUrl} alt={article.title} fill className="object-cover" />
-                                </div>
+                                {article.imageUrl && (
+                                    <div className="relative aspect-video w-full overflow-hidden rounded-t-lg">
+                                        <Image src={article.imageUrl} alt={article.title} fill className="object-cover" />
+                                    </div>
+                                )}
                                 <CardTitle className="pt-4">{article.title}</CardTitle>
                             </CardHeader>
                             <CardContent className="flex-grow">
@@ -724,37 +735,37 @@ const FeedManager = () => {
             setPreviewUrl(null);
         }
     }, [watchedImageUrl, form]);
-
-
-    const fetchFeedItems = useCallback(async () => {
+    
+    const fetchAllData = useCallback(async () => {
         if (!db) return;
         setIsLoading(true);
         try {
-            const q = query(collection(db, 'feedItems'), orderBy('createdAt', 'desc'));
-            const snapshot = await getDocs(q);
-            setFeedItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId)));
+            const feedItemsQuery = query(collection(db, 'feedItems'), orderBy('createdAt', 'desc'));
+            const dailyTopicsQuery = query(collection(db, 'dailyTopics'), orderBy('createdAt', 'desc'));
+
+            const [feedItemsSnapshot, dailyTopicsSnapshot] = await Promise.all([
+                getDocs(feedItemsQuery),
+                getDocs(dailyTopicsQuery)
+            ]);
+            
+            const feedItemsList = feedItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId));
+            const dailyTopicsList = dailyTopicsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId));
+
+            setFeedItems(feedItemsList);
+            setDailyTopics(dailyTopicsList);
+
         } catch (error) {
-            console.error("Error fetching feed items: ", error);
-            toast({ variant: "destructive", title: "Failed to fetch feed items." });
+            console.error("Error fetching data:", error);
+            toast({ variant: "destructive", title: "Failed to fetch content." });
         } finally {
             setIsLoading(false);
         }
     }, [toast]);
 
-    const fetchAllDailyTopics = useCallback(async () => {
-        if (!db) return;
-        setIsLoading(true);
-        try {
-            const q = query(collection(db, 'dailyTopics'), orderBy('createdAt', 'desc'));
-            const snapshot = await getDocs(q);
-            setDailyTopics(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId)));
-        } catch (error) {
-            console.error("Error fetching daily topics: ", error);
-            toast({ variant: "destructive", title: "Failed to fetch daily topics." });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [toast]);
+    useEffect(() => {
+        fetchAllData();
+    }, [fetchAllData]);
+
 
     const filteredFeedItems = useMemo(() => {
         if (postFilter === 'user') {
@@ -766,13 +777,6 @@ const FeedManager = () => {
         return feedItems;
     }, [feedItems, postFilter]);
 
-    useEffect(() => {
-        if(db) {
-            fetchFeedItems();
-            fetchAllDailyTopics();
-        }
-    }, [fetchFeedItems, fetchAllDailyTopics]);
-
     const handleGenerateTopic = async () => {
         if (!db) return;
         setIsGeneratingTopic(true);
@@ -783,7 +787,7 @@ const FeedManager = () => {
             await addDoc(dailyTopicsCollection, { ...post, createdAt: serverTimestamp() });
             
             toast({ title: "✅ Success!", description: "New Topic of the Day has been generated." });
-            fetchAllDailyTopics();
+            await fetchAllData();
         } catch (error: any) {
             console.error("Error generating Topic of the Day:", error);
             const description = error.message?.toLowerCase().includes('api key') 
@@ -797,6 +801,7 @@ const FeedManager = () => {
     
     const handlePin = async (itemToPin: SocialFeedItemWithId) => {
         if (!db) return;
+        toast({ title: "Pinning post..." });
         try {
             const { id: oldId, ...postData } = itemToPin;
             const newTopicData = { ...postData, createdAt: serverTimestamp() }; 
@@ -809,8 +814,7 @@ const FeedManager = () => {
             await batch.commit();
             
             toast({ title: "Success!", description: "Post has been pinned as the new Topic of the Day." });
-            fetchFeedItems();
-            fetchAllDailyTopics();
+            await fetchAllData();
         } catch (error) {
             console.error("Error pinning post:", error);
             toast({ variant: "destructive", title: "Pinning Failed", description: "Could not pin the post." });
@@ -822,7 +826,7 @@ const FeedManager = () => {
         try {
             await deleteDoc(doc(db, 'dailyTopics', id));
             toast({ title: "Success", description: "Deep Dive post deleted." });
-            fetchAllDailyTopics();
+            await fetchAllData();
         } catch (error) {
             console.error("Error deleting Deep Dive:", error);
             toast({ variant: "destructive", title: "Failed to delete Deep Dive." });
@@ -890,7 +894,7 @@ const FeedManager = () => {
                 });
                 toast({ title: "Success", description: "Feed item added." });
             }
-            fetchFeedItems();
+            await fetchAllData();
             closeDialog();
         } catch (error) {
             console.error("Error saving feed item: ", error);
@@ -911,7 +915,7 @@ const FeedManager = () => {
         try {
             await deleteDoc(doc(db, 'feedItems', id));
             toast({ title: "Success", description: "Feed item deleted." });
-            fetchFeedItems();
+            await fetchAllData();
         } catch (error) {
             console.error("Error deleting feed item:", error);
             toast({ variant: "destructive", title: "Failed to delete feed item." });
@@ -1047,7 +1051,7 @@ const FeedManager = () => {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <img src={item.avatar ?? undefined} alt={item.author} className="w-10 h-10 rounded-full" />
+                                        {item.avatar && <Image src={item.avatar} alt={item.author} width={40} height={40} className="w-10 h-10 rounded-full" />}
                                         <div>
                                             <CardTitle className="text-base">{item.author}</CardTitle>
                                             <p className="text-sm text-muted-foreground">{item.handle}</p>
@@ -1202,10 +1206,7 @@ const TimelinesManager = () => {
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                         <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete this timeline.</AlertDialogDescription></AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(timeline.id)}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(timeline.id)}>Delete</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                             </CardFooter>
@@ -1324,6 +1325,115 @@ const SiteSettingsManager = () => {
                 )}
             </CardContent>
         </Card>
+    );
+};
+
+// --- Users Manager Component ---
+const UsersManager = () => {
+    const [users, setUsers] = useState<UserData[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const { toast } = useToast();
+
+    const fetchUsers = useCallback(async () => {
+        if (!db) return;
+        setIsLoading(true);
+        try {
+            const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserData)));
+        } catch (error) {
+            console.error("Error fetching users: ", error);
+            toast({ variant: "destructive", title: "Failed to fetch users." });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+    
+    const handleBadgeChange = async (userId: string, newBadge: UserBadgeType | 'none') => {
+        if (!db) return;
+        
+        const finalBadge = newBadge === 'none' ? null : newBadge;
+
+        try {
+            const userRef = doc(db, 'users', userId);
+            await updateDoc(userRef, { badge: finalBadge });
+            toast({ title: "Success", description: "User badge updated." });
+            setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, badge: finalBadge as UserBadgeType } : u));
+        } catch (error) {
+            console.error("Error updating badge: ", error);
+            toast({ variant: "destructive", title: "Failed to update badge." });
+        }
+    }
+
+    const filteredUsers = useMemo(() => {
+        return users.filter(user => 
+            user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.handle?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [users, searchTerm]);
+
+    return (
+        <div>
+             <div className="relative mb-8">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    placeholder="Search by name or handle..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                />
+            </div>
+            {isLoading ? (
+                <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <Card key={i}><CardContent className="p-4"><Skeleton className="h-10 w-full" /></CardContent></Card>
+                    ))}
+                </div>
+            ) : filteredUsers.length > 0 ? (
+                <div className="space-y-4">
+                    {filteredUsers.map(user => {
+                        const rank = getRank(user.points || 0);
+                        return (
+                             <Card key={user.id}>
+                                <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-semibold">{user.displayName} ({user.handle})</p>
+                                            <UserBadge points={user.points} />
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                                        <p className="text-sm text-muted-foreground">{user.points || 0} points - <span className={cn('font-semibold', rank.color)}>{rank.name}</span></p>
+                                    </div>
+                                    <div className="w-full sm:w-48">
+                                        <Select 
+                                            defaultValue={user.badge || 'none'}
+                                            onValueChange={(value) => handleBadgeChange(user.id, value as UserBadgeType | 'none')}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Assign Badge" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">None</SelectItem>
+                                                <SelectItem value="blue">Blue</SelectItem>
+                                                <SelectItem value="grey">Grey</SelectItem>
+                                                <SelectItem value="orange">Orange</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
+                </div>
+            ) : (
+                <p className="text-muted-foreground text-center py-12">No users found.</p>
+            )}
+        </div>
     )
 }
 
@@ -1334,11 +1444,12 @@ const AdminDashboard = () => (
             <p className="text-muted-foreground">Manage all content across the site.</p>
         </div>
         <Tabs defaultValue="news" className="w-full">
-            <TabsList>
+            <TabsList className="overflow-x-auto w-full justify-start">
                 <TabsTrigger value="news">News Articles</TabsTrigger>
                 <TabsTrigger value="insights">Insights</TabsTrigger>
                 <TabsTrigger value="feed">Social Feed</TabsTrigger>
                 <TabsTrigger value="timelines">Timelines</TabsTrigger>
+                <TabsTrigger value="users">Users</TabsTrigger>
                 <TabsTrigger value="settings">Site Settings</TabsTrigger>
             </TabsList>
             <TabsContent value="news" className="py-6">
@@ -1352,6 +1463,9 @@ const AdminDashboard = () => (
             </TabsContent>
             <TabsContent value="timelines" className="py-6">
                 <TimelinesManager />
+            </TabsContent>
+            <TabsContent value="users" className="py-6">
+                <UsersManager />
             </TabsContent>
              <TabsContent value="settings" className="py-6">
                 <SiteSettingsManager />

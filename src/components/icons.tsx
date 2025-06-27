@@ -1,5 +1,5 @@
 
-import { MessageSquare, Database, TrendingUp, Mail, ArrowRight, Heart, MessageCircle, Share2, Twitter, Youtube, Instagram, Menu, Newspaper, BarChart3, Rss, Cog, Monitor, PenLine, Gem, LogOut, BookOpenText, Trophy } from "lucide-react";
+import { MessageSquare, Database, TrendingUp, Mail, ArrowRight, Heart, MessageCircle, Share2, Twitter, Youtube, Instagram, Menu, Newspaper, BarChart3, Rss, Cog, Monitor, PenLine, Gem, LogOut, BookOpenText, Trophy, BadgeCheck, Shield, Flame, Sparkle, BrainCircuit, Rocket, Crown, Star, ShieldHalf } from "lucide-react";
 
 export const Icons = {
   logo: () => (
@@ -35,4 +35,13 @@ export const Icons = {
   logout: LogOut,
   story: BookOpenText,
   trophy: Trophy,
+  badgeCheck: BadgeCheck,
+  shield: Shield,
+  flame: Flame,
+  shieldHalf: ShieldHalf,
+  sparkle: Sparkle,
+  brainCircuit: BrainCircuit,
+  rocket: Rocket,
+  crown: Crown,
+  star: Star,
 };

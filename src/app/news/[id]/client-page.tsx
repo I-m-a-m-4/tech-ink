@@ -28,26 +28,24 @@ export default function ArticleClientPage({ article }: { article: ArticleWithId 
     };
   
     return (
-        <article className="container mx-auto max-w-3xl px-4 sm:px-6 py-12 md:py-24">
-          <header className="mb-8">
-            <div className="flex justify-between items-start">
-                <Badge variant="outline" className="mb-4 text-primary border-primary">{article.category}</Badge>
-                <Button onClick={handleShare} variant="outline" size="sm"><Share2 className="mr-2 h-4 w-4" /> Share</Button>
-            </div>
+        <article className="container mx-auto max-w-4xl px-4 sm:px-6 py-12 md:py-24">
+          <header className="mb-8 max-w-3xl mx-auto text-center">
+            <Badge variant="outline" className="mb-4 text-primary border-primary">{article.category}</Badge>
             <h1 className="text-4xl md:text-5xl font-extrabold text-foreground mb-4 text-balance">{article.title}</h1>
-            <div className="flex items-center gap-4 text-muted-foreground text-sm">
+            <div className="flex items-center justify-center gap-4 text-muted-foreground text-sm">
                 <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     <span>{publishDate}</span>
                 </div>
+                 <Button onClick={handleShare} variant="link" size="sm" className="gap-2"><Share2 className="h-4 w-4" /> Share</Button>
             </div>
           </header>
           {article.imageUrl && (
-            <div className="relative aspect-video w-full overflow-hidden rounded-2xl shadow-lg mb-8">
+            <div className="relative aspect-video w-full overflow-hidden rounded-2xl shadow-lg mb-12">
                 <Image src={article.imageUrl} alt={article.title} fill className="object-cover" priority />
             </div>
           )}
-          <div className="prose prose-lg dark:prose-invert max-w-full">
+          <div className="prose prose-lg dark:prose-invert max-w-2xl mx-auto">
             <ReactMarkdown>{article.content || article.description}</ReactMarkdown>
           </div>
         </article>

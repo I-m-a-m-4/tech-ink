@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { type SocialFeedItem } from "@/ai/schemas/social-feed-item-schema";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText, Search } from "lucide-react";
+import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText, Search, Link as LinkIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SocialCube3d } from "@/components/social-cube-3d";
 import { SiteHeader } from "@/components/site-header";
@@ -34,7 +34,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import ReactMarkdown from "react-markdown";
 
 const BATCH_SIZE = 5;
-const POST_CHARACTER_LIMIT = 1000;
+const POST_CHARACTER_LIMIT = 600;
 const TRUNCATE_LENGTH = 350;
 
 type SocialFeedItemWithId = SocialFeedItem & { 
@@ -97,7 +97,7 @@ const ExpandableText = ({ text }: { text: string }) => {
     );
 };
 
-const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPostClick: (item: SocialFeedItemWithId) => void }) => {
+const FeedItemCard = ({ item }: { item: SocialFeedItemWithId }) => {
     const { toast } = useToast();
     const { user, addPoints, likedPosts, addLike, removeLike } = useAuth();
     const [likeCount, setLikeCount] = useState(item.likes);
@@ -127,7 +127,7 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                 setLikeCount(c => c + 1);
                 await addLike(item.id, 'feedItems');
                 addPoints(1);
-                toast({ title: "+1 Insight Point!", description: "You've earned a point for engaging with the community." });
+                toast({ title: "+1 Ink Point!", description: "You've earned a point for engaging with the community." });
             }
         } catch (error) {
              setLikeCount(originalLikeCount);
@@ -139,7 +139,7 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
     const handleShare = async () => {
        if (user) { addPoints(5); toast({ title: "+5 Insight Points!", description: "You've earned points for sharing." }); }
        if (typeof window === 'undefined') return;
-       const shareUrl = `${window.location.origin}/feed?post=${item.id}`;
+       const shareUrl = `${window.location.origin}/post/${item.id}`;
        const shareText = `${item.headline} - ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
        if (navigator.share) {
            await navigator.share({ title: item.headline, text: shareText, url: shareUrl }).catch(error => console.error('Error sharing:', error));
@@ -154,7 +154,7 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
         setIsAnalysisOpen(true);
         setIsAnalysisLoading(true);
         addPoints(10);
-        toast({ title: "+10 Insight Points!", description: "You've earned points for your curiosity." });
+        toast({ title: "+10 Ink Points!", description: "You've earned points for your curiosity." });
         try {
             const result = await analyzePost({ headline: item.headline, content: item.content });
             setAnalysisContent(result.analysis);
@@ -191,13 +191,23 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                             <span className="text-muted-foreground hidden sm:inline">·</span>
                             <span className="text-muted-foreground">{displayTime}</span>
                         </div>
-                        <div onClick={() => onPostClick(item)} className="group cursor-pointer">
-                            <h3 className="mt-3 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                        <div className="group">
+                            <Link href={`/post/${item.id}`} className="cursor-pointer">
+                                <h3 className="mt-3 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                            </Link>
                             <ExpandableText text={item.content} />
                              {item.imageUrl && (
-                                <div className="relative aspect-video w-full overflow-hidden rounded-lg mt-4">
-                                    <Image src={item.imageUrl} alt={item.headline} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                                <div className="mt-4 relative w-full h-auto max-h-[500px] overflow-hidden rounded-lg">
+                                    <Image src={item.imageUrl} alt={item.headline} width={500} height={500} className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105" />
                                 </div>
+                            )}
+                            {item.url && item.url !== '#' && (
+                                <a href={item.url} target="_blank" rel="noopener noreferrer" className="mt-4 block">
+                                    <div className="border rounded-lg p-3 hover:bg-muted/50 transition-colors flex items-center gap-3">
+                                        <LinkIcon className="h-4 w-4 text-muted-foreground" />
+                                        <span className="text-sm text-primary underline truncate">{item.url}</span>
+                                    </div>
+                                </a>
                             )}
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
@@ -205,10 +215,12 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
                                 <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
                                 <span>{likeCount}</span>
                             </Button>
-                            <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={() => onPostClick(item)}>
-                                <Icons.comment className="h-4 w-4" />
-                                <span>{item.comments}</span>
-                            </Button>
+                            <Link href={`/post/${item.id}`} className="flex items-center gap-2">
+                                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                                    <Icons.comment className="h-4 w-4" />
+                                    <span>{item.comments}</span>
+                                </Button>
+                            </Link>
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleShare}>
                                 <Icons.share className="h-4 w-4" />
                                 <span className="hidden sm:inline">Share</span>
@@ -253,7 +265,7 @@ const FeedItemCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPos
     );
 };
 
-const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, onPostClick: (item: SocialFeedItemWithId) => void }) => {
+const PinnedTopicCard = ({ item }: { item: SocialFeedItemWithId }) => {
     const { toast } = useToast();
     const { user, addPoints, likedPosts, addLike, removeLike } = useAuth();
     const [likeCount, setLikeCount] = useState(item.likes);
@@ -277,7 +289,7 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                 setLikeCount(c => c + 1);
                 await addLike(item.id, 'dailyTopics');
                 addPoints(1);
-                toast({ title: "+1 Insight Point!", description: "You've earned a point for engaging with the community." });
+                toast({ title: "+1 Ink Point!", description: "You've earned a point for engaging with the community." });
             }
         } catch (error) {
              setLikeCount(originalLikeCount);
@@ -288,7 +300,7 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
     const handleShare = async () => {
         if (user) { addPoints(5); toast({ title: "+5 Insight Points!", description: "You've earned points for sharing." }); }
         if (typeof window === 'undefined') return;
-        const shareUrl = `${window.location.origin}/feed?post=${item.id}`;
+        const shareUrl = `${window.location.origin}/post/${item.id}`;
         const shareText = `${item.headline} - ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
         if (navigator.share) {
             await navigator.share({ title: item.headline, text: shareText, url: shareUrl }).catch(error => console.error('Error sharing:', error));
@@ -303,7 +315,7 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
         setIsAnalysisOpen(true);
         setIsAnalysisLoading(true);
         addPoints(10);
-        toast({ title: "+10 Insight Points!", description: "You've earned points for your curiosity." });
+        toast({ title: "+10 Ink Points!", description: "You've earned points for your curiosity." });
         try {
             const result = await analyzePost({ headline: item.headline, content: item.content });
             setAnalysisContent(result.analysis);
@@ -334,12 +346,14 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                             <span className="text-muted-foreground hidden sm:inline">·</span>
                             <span className="text-muted-foreground">{displayTime}</span>
                         </div>
-                        <div onClick={() => onPostClick(item)} className="group cursor-pointer">
-                            <h3 className="mt-4 text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                         <div className="group">
+                             <Link href={`/post/${item.id}`} className="cursor-pointer">
+                                <h3 className="mt-4 text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                            </Link>
                             <ExpandableText text={item.content} />
                              {item.imageUrl && (
-                                <div className="relative aspect-video w-full overflow-hidden rounded-lg mt-4">
-                                    <Image src={item.imageUrl} alt={item.headline} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                                 <div className="mt-4 relative w-full h-auto max-h-[500px] overflow-hidden rounded-lg">
+                                    <Image src={item.imageUrl} alt={item.headline} width={800} height={400} className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105" />
                                 </div>
                             )}
                         </div>
@@ -348,10 +362,12 @@ const PinnedTopicCard = ({ item, onPostClick }: { item: SocialFeedItemWithId, on
                                 <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
                                 <span>{likeCount}</span>
                             </Button>
-                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={() => onPostClick(item)}>
-                                <Icons.comment className="h-4 w-4" />
-                                <span>{item.comments}</span>
-                            </Button>
+                            <Link href={`/post/${item.id}`}>
+                                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                                    <Icons.comment className="h-4 w-4" />
+                                    <span>{item.comments}</span>
+                                </Button>
+                            </Link>
                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleShare}>
                                 <Icons.share className="h-4 w-4" />
                                 <span className="hidden sm:inline">Share</span>
@@ -391,19 +407,11 @@ function FeedPageComponent() {
   const { toast } = useToast();
   const { user, profile, addPoints } = useAuth();
   
-  const [activePost, setActivePost] = useState<SocialFeedItemWithId | null>(null);
-  const [isPostDetailOpen, setIsPostDetailOpen] = useState(false);
-
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [isCommentsLoading, setIsCommentsLoading] = useState(false);
-  const commentForm = useForm<CommentFormValues>({ resolver: zodResolver(commentFormSchema), defaultValues: { commentText: "" } });
-
   const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", url: "", imageUrl: "" } });
   const watchedImageUrl = addPostForm.watch('imageUrl');
   const watchedContent = addPostForm.watch('content');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  const searchParams = useSearchParams();
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -422,28 +430,6 @@ function FeedPageComponent() {
         setPreviewUrl(null);
     }
   }, [watchedImageUrl, addPostForm]);
-
-  const handleOpenPostDetail = useCallback(async (post: SocialFeedItemWithId) => {
-    setActivePost(post);
-    setIsPostDetailOpen(true);
-    
-    if (!db) return;
-
-    setIsCommentsLoading(true);
-    const isTopicPost = post.id === pinnedTopic?.id;
-    const collectionName = isTopicPost ? 'dailyTopics' : 'feedItems';
-    const commentsRef = collection(db, collectionName, post.id, "comments");
-    const q = query(commentsRef, orderBy("createdAt", "desc"));
-    try { 
-        onSnapshot(q, (snapshot) => { 
-            setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment))); 
-            setIsCommentsLoading(false); 
-        });
-    } catch (error) { 
-        toast({ variant: "destructive", title: "Failed to load comments." });
-        setIsCommentsLoading(false); 
-    }
-  }, [pinnedTopic?.id, toast]);
 
   const fetchFeed = useCallback(async (isRefresh = false) => {
     if (!db) {
@@ -487,36 +473,6 @@ function FeedPageComponent() {
   }, []);
 
   useEffect(() => { fetchFeed(); }, [fetchFeed]);
-  
-  useEffect(() => {
-    if (isLoading) return;
-    const postId = searchParams.get('post');
-    if (postId) {
-        const findPost = async () => {
-            let post: SocialFeedItemWithId | null = null;
-            if (pinnedTopic?.id === postId) {
-                post = pinnedTopic;
-            } else {
-                post = allFeedItems.find(p => p.id === postId) || null;
-            }
-
-            if(post) {
-                handleOpenPostDetail(post);
-            } else if (db) { 
-                const feedItemRef = doc(db, 'feedItems', postId);
-                const topicItemRef = doc(db, 'dailyTopics', postId);
-                const [feedSnap, topicSnap] = await Promise.all([getDoc(feedItemRef), getDoc(topicItemRef)]);
-                if(feedSnap.exists()){
-                     handleOpenPostDetail({id: feedSnap.id, ...feedSnap.data()} as SocialFeedItemWithId)
-                } else if (topicSnap.exists()) {
-                     handleOpenPostDetail({id: topicSnap.id, ...topicSnap.data()} as SocialFeedItemWithId)
-                }
-            }
-             router.replace('/feed', { scroll: false });
-        }
-        findPost();
-    }
-  }, [isLoading, allFeedItems, pinnedTopic, searchParams, router, handleOpenPostDetail]);
 
   const onAddPostSubmit: SubmitHandler<AddPostFormValues> = async (values) => {
     if (!user || !profile || !db) { toast({ variant: "destructive", title: "You must be logged in to post." }); return; }
@@ -558,61 +514,11 @@ function FeedPageComponent() {
     if (node) observer.current.observe(node);
   }, [isLoading, hasMore, loadMoreFeedItems]);
 
-    const handlePostComment: SubmitHandler<CommentFormValues> = async (data) => {
-        if (!user || !activePost || !db) return;
-        
-        const isTopicPost = activePost.id === pinnedTopic?.id;
-        const collectionName = isTopicPost ? 'dailyTopics' : 'feedItems';
-        
-        const batch = writeBatch(db);
-        const commentsRef = collection(db, collectionName, activePost.id, "comments");
-        const postRef = doc(db, collectionName, activePost.id);
-        const newCommentRef = doc(commentsRef);
+  const filteredTopicHistory = topicHistory.filter(topic => 
+      topic.headline.toLowerCase().includes(historySearchTerm.toLowerCase())
+  );
 
-        batch.set(newCommentRef, {
-            text: data.commentText,
-            author: user.displayName || "Anonymous",
-            avatar: user.photoURL || `https://source.unsplash.com/random/100x100?portrait,user`,
-            userId: user.uid,
-            createdAt: serverTimestamp(),
-        });
-        batch.update(postRef, { comments: increment(1) });
-        
-        if (activePost.userId && activePost.userId !== user.uid) {
-            const notificationRef = doc(collection(db, 'notifications'));
-            batch.set(notificationRef, {
-                recipientId: activePost.userId,
-                senderId: user.uid,
-                senderName: user.displayName || "Anonymous",
-                type: 'comment',
-                postId: activePost.id,
-                postHeadline: activePost.headline,
-                read: false,
-                createdAt: serverTimestamp(),
-            });
-        }
-        
-        try {
-            await batch.commit();
-
-            addPoints(5);
-            toast({ title: "Comment posted!" });
-            commentForm.reset();
-            
-            const updateItemComments = (item: SocialFeedItemWithId) => item.id === activePost.id ? { ...item, comments: item.comments + 1} : item;
-            setAllFeedItems(prev => prev.map(updateItemComments));
-            setVisibleFeedItems(prev => prev.map(updateItemComments));
-            if (isTopicPost) { setPinnedTopic(prev => prev ? { ...prev, comments: prev.comments + 1} : null); }
-            setActivePost(prev => prev ? { ...prev, comments: prev.comments + 1} : null);
-
-        } catch (error) { toast({ variant: "destructive", title: "Failed to post comment" }); }
-    };
-
-    const filteredTopicHistory = topicHistory.filter(topic => 
-        topic.headline.toLowerCase().includes(historySearchTerm.toLowerCase())
-    );
-
-    return (
+  return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
       <main className="flex-1">
@@ -620,8 +526,8 @@ function FeedPageComponent() {
           <div className="mx-auto max-w-6xl">
             <div className="mx-auto mb-12 max-w-xl text-center"><h1 className="text-4xl font-extrabold md:text-6xl animate-gradient">Live Tech Feed</h1><p className="mt-4 text-lg text-muted-foreground">A curated feed of the latest buzz from across the tech world, managed by our team.</p><Button onClick={() => fetchFeed(true)} disabled={isLoading} className="mt-6"><RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />Refresh Feed</Button></div>
             <div className="flex flex-col gap-8">
-              {pinnedTopic && <PinnedTopicCard item={pinnedTopic} onPostClick={handleOpenPostDetail} />}
-              {visibleFeedItems.map((item, index) => ( <div ref={visibleFeedItems.length === index + 1 ? lastItemElementRef : null} key={item.id}><FeedItemCard item={item} onPostClick={handleOpenPostDetail} /></div> ))}
+              {pinnedTopic && <PinnedTopicCard item={pinnedTopic} />}
+              {visibleFeedItems.map((item, index) => ( <div ref={visibleFeedItems.length === index + 1 ? lastItemElementRef : null} key={item.id}><FeedItemCard item={item} /></div> ))}
             </div>
             {isLoading && ( <div className="text-center py-12 flex justify-center items-center gap-2"><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-muted-foreground">Loading new content...</span></div> )}
             {!isLoading && allFeedItems.length === 0 && !pinnedTopic && ( <div className="text-center py-12"><Card className="max-w-md mx-auto p-8 text-center bg-card/50"><Newspaper className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">The Feed is Quiet</h3><p className="mt-2 text-muted-foreground">There are no posts in the feed right now. Be the first to post!</p></Card></div> )}
@@ -651,7 +557,7 @@ function FeedPageComponent() {
                                             <Card key={topic.id} className="p-4 flex justify-between items-center"><div className="flex-1 mr-4">
                                                 <h3 className="font-semibold truncate">{topic.headline}</h3>
                                                 <p className="text-sm text-muted-foreground">{getDisplayTime(topic)}</p>
-                                            </div><Button variant="ghost" onClick={() => handleOpenPostDetail(topic)}>Read More <FileText className="ml-2 h-4 w-4" /></Button></Card>
+                                            </div><Button variant="ghost" asChild><Link href={`/post/${topic.id}`}>Read More <FileText className="ml-2 h-4 w-4" /></Link></Button></Card>
                                         ))
                                     ) : (
                                         <p className="text-muted-foreground text-center py-4">No topics found matching your search.</p>
@@ -703,92 +609,6 @@ function FeedPageComponent() {
             </DialogContent>
           </Dialog>
         )}
-
-        <Dialog open={isPostDetailOpen} onOpenChange={setIsPostDetailOpen}>
-            <DialogContent className="max-w-2xl flex flex-col h-[90vh]">
-                {activePost && (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle>{activePost.headline}</DialogTitle>
-                            <DialogDescription>By {activePost.author} ({activePost.handle}) &bull; {getDisplayTime(activePost)}</DialogDescription>
-                        </DialogHeader>
-                        <Separator />
-                        <div className="flex-1 overflow-hidden">
-                            <ScrollArea className="h-full pr-4">
-                                 <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none whitespace-pre-line mt-4">
-                                    <ReactMarkdown>{activePost.content}</ReactMarkdown>
-                                </div>
-                                {activePost.imageUrl && (
-                                    <div className="relative aspect-video w-full overflow-hidden rounded-lg my-4">
-                                        <Image src={activePost.imageUrl} alt={activePost.headline} fill className="object-cover" />
-                                    </div>
-                                )}
-                                <Separator className="my-6" />
-                                <h3 className="text-lg font-semibold mb-4">Comments</h3>
-                                {isCommentsLoading ? (
-                                    <div className="space-y-4">
-                                        {Array.from({ length: 3 }).map((_, i) => (
-                                            <div key={i} className="flex items-center space-x-4">
-                                                <div className="rounded-full bg-muted h-10 w-10 animate-pulse"></div>
-                                                <div className="space-y-2">
-                                                    <div className="h-4 bg-muted rounded w-[250px] animate-pulse"></div>
-                                                    <div className="h-4 bg-muted rounded w-[200px] animate-pulse"></div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : comments.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {comments.map(comment => (
-                                            <div key={comment.id} className="flex items-start gap-3">
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarImage src={comment.avatar} />
-                                                    <AvatarFallback>{comment.author.charAt(0)}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-semibold text-sm">{comment.author}</span>
-                                                        <span className="text-xs text-muted-foreground">{getDisplayTime(comment)}</span>
-                                                    </div>
-                                                    <p className="text-sm text-foreground/90">{comment.text}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center text-muted-foreground py-8">
-                                        <p>No comments yet. Be the first to start the conversation!</p>
-                                    </div>
-                                )}
-                            </ScrollArea>
-                        </div>
-                        <Separator />
-                        <div className="mt-auto pt-4">
-                             {user ? (
-                                <Form {...commentForm}>
-                                    <form onSubmit={commentForm.handleSubmit(handlePostComment)} className="flex items-center gap-2">
-                                        <FormField control={commentForm.control} name="commentText" render={({ field }) => (
-                                            <FormItem className="flex-1">
-                                                <FormControl>
-                                                    <Input placeholder="Add a comment..." {...field} />
-                                                </FormControl>
-                                            </FormItem>
-                                        )} />
-                                        <Button type="submit" disabled={commentForm.formState.isSubmitting}>
-                                            {commentForm.formState.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Post"}
-                                        </Button>
-                                    </form>
-                                </Form>
-                            ) : (
-                                <div className="text-center">
-                                    <Button asChild><Link href="/login">Log in to comment</Link></Button>
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-            </DialogContent>
-        </Dialog>
       <SiteFooter />
     </div>
   );
@@ -801,5 +621,3 @@ export default function FeedPage() {
         </Suspense>
     )
 }
-
-    
