@@ -10,14 +10,14 @@ import type { SocialFeedItem, Poll } from '@/ai/schemas/social-feed-item-schema'
 import UserProfileClientPage from './client-page';
 import type { Metadata } from 'next';
 
-export type UserBadge = 'blue' | 'grey' | 'orange' | null;
+export type UserBadgeType = 'blue' | 'grey' | 'orange' | null;
 
 export type UserData = UserProfile & {
     id: string;
     displayName: string;
     handle: string;
     avatar?: string;
-    badge: UserBadge;
+    badge: UserBadgeType;
     publicName: boolean;
 };
 export type PostWithId = Omit<SocialFeedItem, 'createdAt' | 'poll'> & { 

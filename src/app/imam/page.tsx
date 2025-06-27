@@ -14,9 +14,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from 'zod';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon, BadgeCheck, Search } from 'lucide-react';
+import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon, BadgeCheck, Search, ListFilter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateArticles } from '@/ai/flows/generate-articles-flow';
@@ -86,7 +86,7 @@ type UserData = UserProfile & {
 };
 type ArticleWithId = Article & { id: string };
 type InsightWithId = Insight & { id: string };
-type SocialFeedItemWithId = SocialFeedItem & { id: string, views?: number, userId?: string, comments: number };
+type SocialFeedItemWithId = SocialFeedItem & { id: string; views?: number; userId?: string; comments: number };
 type TimelineData = { id: string; topic: string; events: TimelineEvent[]; createdAt?: any; };
 
 const SkeletonCard = () => (
@@ -131,6 +131,7 @@ const NewsManager = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingArticle, setEditingArticle] = useState<ArticleWithId | null>(null);
     const { toast } = useToast();
     const form = useForm<ArticleFormValues>({ resolver: zodResolver(ArticleSchema), defaultValues: { imageUrl: '' } });
@@ -144,7 +145,7 @@ const NewsManager = () => {
         const potentialUrl = match ? match[1] : input;
 
         try {
-            new URL(potentialUrl);
+            if (potentialUrl) new URL(potentialUrl);
             setPreviewUrl(potentialUrl);
             if (match) {
                 form.setValue('imageUrl', potentialUrl, { shouldValidate: true });
@@ -282,7 +283,14 @@ const NewsManager = () => {
             category: article.category,
             externalUrl: article.externalUrl || '',
         });
+        setIsDialogOpen(true);
     };
+
+    const handleAddNew = () => {
+        setEditingArticle(null);
+        form.reset({ title: '', description: '', content: '', imageUrl: '', imageAiHint: '', category: '', externalUrl: '' });
+        setIsDialogOpen(true);
+    }
 
     const handleDelete = async (id: string) => {
         if (!db) return;
@@ -297,9 +305,7 @@ const NewsManager = () => {
     };
 
     const closeDialog = () => {
-        setEditingArticle(null);
-        form.reset({ imageUrl: '' });
-        document.getElementById('news-dialog-close')?.click();
+        setIsDialogOpen(false);
     };
 
     const ArticleForm = () => (
@@ -375,24 +381,22 @@ const NewsManager = () => {
     return (
         <div>
             <div className="flex flex-wrap gap-4 mb-8">
-                <Dialog onOpenChange={(open) => !open && closeDialog()}>
-                    <DialogTrigger asChild>
-                        <Button><PlusCircle className="mr-2 h-4 w-4" /> Add Manually</Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>{editingArticle ? 'Edit' : 'Add'} News Article</DialogTitle>
-                            <DialogDescription>Fill in the details for the article. Click the save button when you're done.</DialogDescription>
-                        </DialogHeader>
-                        <ArticleForm />
-                    </DialogContent>
-                    <DialogClose id="news-dialog-close" className="hidden" />
-                </Dialog>
+                 <Button onClick={handleAddNew}><PlusCircle className="mr-2 h-4 w-4" /> Add Manually</Button>
                 <Button onClick={handleGenerateArticles} disabled={isGenerating}>
                     {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
                     Generate with AI
                 </Button>
             </div>
+
+             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{editingArticle ? 'Edit' : 'Add'} News Article</DialogTitle>
+                        <DialogDescription>Fill in the details for the article. Click the save button when you're done.</DialogDescription>
+                    </DialogHeader>
+                    <ArticleForm />
+                </DialogContent>
+            </Dialog>
 
             {isLoading ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -415,18 +419,7 @@ const NewsManager = () => {
                                 <p className="text-sm font-bold mt-2 text-primary">{article.category}</p>
                             </CardContent>
                             <CardFooter className="border-t flex justify-end gap-2 pt-4">
-                                <Dialog onOpenChange={(open) => !open && closeDialog()}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" size="icon" onClick={() => handleEdit(article)}><Edit className="h-4 w-4" /></Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                                        <DialogHeader>
-                                            <DialogTitle>Edit News Article</DialogTitle>
-                                            <DialogDescription>Make changes to this article. Click the update button when you're done.</DialogDescription>
-                                        </DialogHeader>
-                                        <ArticleForm />
-                                    </DialogContent>
-                                </Dialog>
+                                <Button variant="outline" size="icon" onClick={() => handleEdit(article)}><Edit className="h-4 w-4" /></Button>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button>
@@ -461,6 +454,7 @@ const InsightsManager = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGeneratingChart, setIsGeneratingChart] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingInsight, setEditingInsight] = useState<InsightWithId | null>(null);
     const { toast } = useToast();
     const form = useForm<InsightFormValues>({ resolver: zodResolver(InsightSchema) });
@@ -566,6 +560,13 @@ const InsightsManager = () => {
             data: insight.data ? JSON.stringify(insight.data, null, 2) as any : undefined,
             config: insight.config ? JSON.stringify(insight.config, null, 2) as any : undefined,
         });
+        setIsDialogOpen(true);
+    };
+
+    const handleAddNew = () => {
+        setEditingInsight(null);
+        form.reset({ type: 'quote', title: '', description: '', quote: { text: '', author: '' } });
+        setIsDialogOpen(true);
     };
 
     const handleDelete = async (id: string) => {
@@ -581,9 +582,7 @@ const InsightsManager = () => {
     };
     
     const closeDialog = () => {
-        setEditingInsight(null);
-        form.reset();
-        document.getElementById('insight-dialog-close')?.click();
+        setIsDialogOpen(false);
     };
 
     const InsightForm = () => (
@@ -636,10 +635,8 @@ const InsightsManager = () => {
 
     return (
         <div>
-            <Dialog onOpenChange={(open) => !open && closeDialog()}>
-                <DialogTrigger asChild>
-                    <Button className="mb-8"><PlusCircle className="mr-2 h-4 w-4" /> Add Insight</Button>
-                </DialogTrigger>
+            <Button onClick={handleAddNew} className="mb-8"><PlusCircle className="mr-2 h-4 w-4" /> Add Insight</Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingInsight ? 'Edit' : 'Add'} Insight</DialogTitle>
@@ -647,7 +644,6 @@ const InsightsManager = () => {
                     </DialogHeader>
                     <InsightForm />
                 </DialogContent>
-                <DialogClose id="insight-dialog-close" className="hidden" />
             </Dialog>
 
              {isLoading ? (
@@ -664,18 +660,7 @@ const InsightsManager = () => {
                                 <p className="text-sm font-bold mt-2 text-primary capitalize">{insight.type}</p>
                             </CardContent>
                             <CardFooter className="border-t flex justify-end gap-2 pt-4">
-                                <Dialog onOpenChange={(open) => !open && closeDialog()}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" size="icon" onClick={() => handleEdit(insight)}><Edit className="h-4 w-4" /></Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                                        <DialogHeader>
-                                            <DialogTitle>Edit Insight</DialogTitle>
-                                            <DialogDescription>Make changes to this insight. Click the update button when you're done.</DialogDescription>
-                                        </DialogHeader>
-                                        <InsightForm />
-                                    </DialogContent>
-                                </Dialog>
+                                <Button variant="outline" size="icon" onClick={() => handleEdit(insight)}><Edit className="h-4 w-4" /></Button>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                         <Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button>
@@ -689,8 +674,7 @@ const InsightsManager = () => {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(insight.id)}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
+                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(insight.id)}>Delete</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                             </CardFooter>
@@ -711,6 +695,7 @@ const FeedManager = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<SocialFeedItemWithId | null>(null);
     const [isGeneratingTopic, setIsGeneratingTopic] = useState(false);
     const { toast } = useToast();
@@ -726,7 +711,7 @@ const FeedManager = () => {
         const potentialUrl = match ? match[1] : input;
 
         try {
-            new URL(potentialUrl);
+            if (potentialUrl) new URL(potentialUrl);
             setPreviewUrl(potentialUrl);
             if (match) {
                 form.setValue('imageUrl', potentialUrl, { shouldValidate: true });
@@ -882,6 +867,10 @@ const FeedManager = () => {
                 avatar: "https://source.unsplash.com/random/100x100?portrait,man" // Static avatar for admin
             };
             
+            if (!payload.imageUrl) {
+                delete payload.imageUrl;
+            }
+
             if (editingItem) {
                 await updateDoc(doc(db, 'feedItems', editingItem.id), payload);
                 toast({ title: "Success", description: "Feed item updated." });
@@ -908,6 +897,13 @@ const FeedManager = () => {
         setEditingItem(item);
         const { id, createdAt, likes, comments, views, author, handle, avatar, time, userId, ...formData } = item;
         form.reset(formData);
+        setIsDialogOpen(true);
+    };
+
+    const handleAddNew = () => {
+        setEditingItem(null);
+        form.reset({ headline: '', content: '', platform: 'TechInk', url: '', imageUrl: '', imageAiHint: '' });
+        setIsDialogOpen(true);
     };
 
     const handleDeleteFeedItem = async (id: string) => {
@@ -923,9 +919,7 @@ const FeedManager = () => {
     };
     
     const closeDialog = () => {
-        setEditingItem(null);
-        form.reset({ imageUrl: '' });
-        document.getElementById('feed-dialog-close')?.click();
+        setIsDialogOpen(false);
     };
 
     const FeedForm = () => (
@@ -951,7 +945,7 @@ const FeedManager = () => {
                 <FormField control={form.control} name="url" render={({ field }) => ( <FormItem><FormLabel>URL</FormLabel><FormControl><Input placeholder="e.g., https://twitter.com/post/123" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="imageUrl" render={({ field }) => ( 
                     <FormItem>
-                        <FormLabel>Image URL (Optional)</FormLabel>
+                        <Label htmlFor="imageUrl">Image URL (Optional)</Label>
                         <FormControl><Input placeholder="Paste a direct image URL or ImgBB embed code" {...field} disabled={isUploading} /></FormControl>
                         {previewUrl && (
                            <div className="mt-4 relative aspect-video w-full overflow-hidden rounded-md border">
@@ -987,18 +981,23 @@ const FeedManager = () => {
 
     return (
         <div>
-            <Card className="mb-8">
-                <CardHeader>
-                    <CardTitle>Topic of the Day</CardTitle>
-                    <CardDescription>Generate a new featured post that will be pinned to the top of the main feed page.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button onClick={handleGenerateTopic} disabled={isGeneratingTopic}>
-                        {isGeneratingTopic ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                        Generate New Topic
-                    </Button>
-                </CardContent>
-            </Card>
+            <div className="flex flex-wrap gap-4 mb-8">
+                <Button onClick={handleAddNew}><PlusCircle className="mr-2 h-4 w-4" /> Add Feed Item</Button>
+                <Button onClick={handleGenerateTopic} disabled={isGeneratingTopic}>
+                    {isGeneratingTopic ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
+                    Generate Topic of the Day
+                </Button>
+            </div>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{editingItem ? 'Edit' : 'Add'} Feed Item</DialogTitle>
+                        <DialogDescription>Create or edit a feed post.</DialogDescription>
+                    </DialogHeader>
+                    <FeedForm />
+                </DialogContent>
+            </Dialog>
 
             <h3 className="text-2xl font-bold mt-12 mb-4">Manage Deep Dives (Pinned Topics)</h3>
             {isLoading ? (
@@ -1065,6 +1064,14 @@ const FeedManager = () => {
                             <CardContent className="flex-grow">
                                 <h4 className="font-semibold mb-2">{item.headline}</h4>
                                 <p className="text-muted-foreground line-clamp-4">{item.content}</p>
+                                 {item.poll && (
+                                    <div className="mt-2">
+                                        <span className="text-xs font-bold inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-full">
+                                            <ListFilter className="h-3 w-3" />
+                                            Poll
+                                        </span>
+                                    </div>
+                                )}
                             </CardContent>
                             <CardFooter className="border-t flex justify-end gap-2 pt-4">
                                 <AlertDialog>
@@ -1074,10 +1081,7 @@ const FeedManager = () => {
                                         <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handlePin(item)}>Pin Post</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                                <Dialog onOpenChange={(open) => !open && closeDialog()}>
-                                    <DialogTrigger asChild><Button variant="outline" size="icon" onClick={() => handleEdit(item)}><Edit className="h-4 w-4" /></Button></DialogTrigger>
-                                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Edit Feed Item</DialogTitle><DialogDescription>Make changes to this post.</DialogDescription></DialogHeader><FeedForm /></DialogContent>
-                                </Dialog>
+                                <Button variant="outline" size="icon" onClick={() => handleEdit(item)}><Edit className="h-4 w-4" /></Button>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -1325,8 +1329,8 @@ const SiteSettingsManager = () => {
                 )}
             </CardContent>
         </Card>
-    );
-};
+    )
+}
 
 // --- Users Manager Component ---
 const UsersManager = () => {
@@ -1576,3 +1580,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

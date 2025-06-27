@@ -2,42 +2,39 @@
 "use client";
 
 import { Icons } from "@/components/icons";
-import Link from "next/link";
 import Image from "next/image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { type SocialFeedItem, type Poll, PollOptionSchema } from "@/ai/schemas/social-feed-item-schema";
+import { type SocialFeedItem, type Poll } from "@/ai/schemas/social-feed-item-schema";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText, Search, Link as LinkIcon, ImageUp, CirclePlus, CheckCircle2, BarChart3, Trash2 } from "lucide-react";
+import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText, Search, ImageUp, BarChart3, Trash2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SocialCube3d } from "@/components/social-cube-3d";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { useAuth } from "@/contexts/auth-context";
-import { db, auth as firebaseAuth } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy, doc, getDoc, updateDoc, increment, addDoc, serverTimestamp, type Timestamp, onSnapshot, writeBatch, runTransaction } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, orderBy, addDoc, serverTimestamp, type Timestamp, onSnapshot } from "firebase/firestore";
 import { Newspaper } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm, SubmitHandler, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { analyzePost } from "@/ai/flows/analyze-post-flow";
-import { Separator } from "@/components/ui/separator";
 import { formatDistanceToNow } from 'date-fns';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { useSearchParams, useRouter } from 'next/navigation';
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Label } from "@/components/ui/label";
-import { startLoader } from "@/lib/loader-events";
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ClientLink } from "@/components/client-link";
 
 
 const BATCH_SIZE = 5;
@@ -53,27 +50,25 @@ type SocialFeedItemWithId = SocialFeedItem & {
     poll?: Poll;
 };
 
-type Comment = {
-    id: string;
-    text: string;
-    author: string;
-    avatar: string;
-    userId: string;
-    createdAt: Timestamp;
-}
-
 const addPostFormSchema = z.object({
-  headline: z.string().min(10, { message: "Headline must be at least 10 characters." }).max(100, { message: "Headline must be less than 100 characters." }),
-  content: z.string().min(20, { message: "Content must be at least 20 characters." }).max(POST_CHARACTER_LIMIT, { message: `Content must be less than ${POST_CHARACTER_LIMIT} characters.` }),
+  headline: z.string().min(10, { message: "Headline or Poll Question must be at least 10 characters." }).max(100, { message: "Headline/Question must be less than 100 characters." }),
+  content: z.string().max(POST_CHARACTER_LIMIT, { message: `Content must be less than ${POST_CHARACTER_LIMIT} characters.` }).optional(),
   imageUrl: z.string().url({ message: "Please enter a valid image URL." }).optional().or(z.literal('')),
   poll: z.object({
-    options: z.array(PollOptionSchema).min(2, "A poll must have at least 2 options.").max(4, "A poll can have at most 4 options."),
-    allowMultipleVotes: z.boolean().default(false),
+    options: z.array(z.object({ text: z.string().min(1, "Option cannot be empty").max(80, "Option is too long") })).min(2, "A poll must have at least 2 options.").max(4, "A poll can have at most 4 options."),
   }).optional(),
+}).superRefine((data, ctx) => {
+    if (!data.poll && (!data.content || data.content.length < 20)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["content"],
+            message: "Content must be at least 20 characters for a regular post.",
+        });
+    }
 });
 type AddPostFormValues = z.infer<typeof addPostFormSchema>;
 
-const getDisplayTime = (item: SocialFeedItemWithId | Comment) => {
+const getDisplayTime = (item: SocialFeedItemWithId) => {
     if (item.createdAt && typeof item.createdAt.toDate === 'function') {
         return formatDistanceToNow(item.createdAt.toDate(), { addSuffix: true });
     }
@@ -89,13 +84,19 @@ const ExpandableText = ({ text }: { text: string }) => {
         return <div className={textContainerClasses}><ReactMarkdown>{text}</ReactMarkdown></div>;
     }
 
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setIsExpanded(true);
+    }
+
     return (
         <>
             <div className={textContainerClasses}>
                 <ReactMarkdown>{isExpanded ? text : `${text.substring(0, TRUNCATE_LENGTH)}...`}</ReactMarkdown>
             </div>
             {!isExpanded && (
-                <Button variant="link" className="px-0 h-auto -mt-2 text-sm" onClick={(e) => { e.stopPropagation(); setIsExpanded(true); }}>
+                <Button variant="link" className="px-0 h-auto -mt-2 text-sm" onClick={handleClick}>
                     Read More
                 </Button>
             )}
@@ -114,44 +115,40 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
     
     const displayTime = getDisplayTime(item);
     const isLiked = likedPosts.has(item.id);
-    const hasVoted = votedOnPolls.has(item.id);
-
-    const [pollData, setPollData] = useState(item.poll);
-    const [selectedPollOptions, setSelectedPollOptions] = useState<string[]>([]);
+    const hasVotedOnThisPoll = votedOnPolls.has(item.id);
+    const [pollState, setPollState] = useState(item.poll);
 
     useEffect(() => {
-        setPollData(item.poll);
+        setPollState(item.poll);
     }, [item.poll]);
-
-    const handleVote = async () => {
+    
+    const handleVote = async (optionText: string) => {
         if (!user) { toast({ variant: "destructive", title: "Login Required" }); return; }
-        if (selectedPollOptions.length === 0) { toast({ variant: "destructive", title: "No option selected" }); return; }
-        if (!pollData) return;
+        if (!pollState) return;
 
         try {
-            await voteOnPoll(item.id, 'feedItems', selectedPollOptions, pollData);
-            
-            const newOptions = pollData.options.map(opt => 
-                selectedPollOptions.includes(opt.text) ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
-            );
-            setPollData({ ...pollData, options: newOptions });
-
-            toast({ title: "Vote cast!" });
-            addPoints(2);
+            await voteOnPoll(item.id, 'feedItems', optionText);
+            setPollState(currentPoll => {
+                if (!currentPoll) return undefined;
+                return {
+                    ...currentPoll,
+                    options: {
+                        ...currentPoll.options,
+                        [optionText]: (currentPoll.options[optionText] || 0) + 1,
+                    },
+                };
+            });
         } catch (error: any) {
             console.error("Vote error:", error);
             toast({ variant: "destructive", title: "Vote Failed", description: error.message || "An error occurred." });
         }
     };
     
-    const togglePollOption = (optionText: string) => {
-        setSelectedPollOptions(prev => {
-            if (pollData?.allowMultipleVotes) {
-                return prev.includes(optionText) ? prev.filter(o => o !== optionText) : [...prev, optionText];
-            }
-            return [optionText];
-        });
-    };
+    const handleFooterAction = (e: React.MouseEvent, action: (() => void) | (() => Promise<void>)) => {
+        e.stopPropagation();
+        e.preventDefault();
+        action();
+    }
 
     const handleLike = async () => {
         if (!user) {
@@ -179,7 +176,7 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
        if (user) { addPoints(5); }
        if (typeof window === 'undefined') return;
        const shareUrl = `${window.location.origin}/post/${item.id}`;
-       const shareText = `${item.headline} - ${item.content.substring(0, 150)}${item.content.length > 150 ? '...' : ''}`;
+       const shareText = `${item.headline} - ${item.content ? item.content.substring(0, 150) : ''}${item.content && item.content.length > 150 ? '...' : ''}`;
        if (navigator.share) {
            await navigator.share({ title: item.headline, text: shareText, url: shareUrl }).catch(error => console.error('Error sharing:', error));
        } else {
@@ -216,66 +213,70 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
 
     return (
         <>
-            <Card className="bg-card/40 shadow-lg border-border/60 p-0 animate-in fade-in-50 overflow-hidden">
-                <CardHeader className="p-6 pb-4">
-                    <div className="flex items-start gap-4">
-                        <Avatar>
-                            <AvatarImage src={item.avatar} alt={item.author} />
-                            <AvatarFallback>{item.author.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <Link href={`/u/${item.handle.substring(1)}`} onClick={startLoader} className="font-bold hover:underline">{item.handle}</Link>
-                                <span className="text-muted-foreground hidden sm:inline">·</span>
-                                <span className="text-muted-foreground">{displayTime}</span>
+            <ClientLink href={`/post/${item.id}`} className="block group">
+                <Card className="bg-card/40 shadow-lg border-border/60 p-0 animate-in fade-in-50 overflow-hidden transition-all hover:border-primary">
+                    <div className="p-6 pb-4">
+                        <div className="flex items-start gap-4">
+                            <Avatar>
+                                <AvatarImage src={item.avatar} alt={item.handle} />
+                                <AvatarFallback>{item.handle.charAt(1)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <ClientLink href={`/u/${item.handle.substring(1)}`} className="font-bold hover:underline">{item.handle}</ClientLink>
+                                    <span className="text-muted-foreground hidden sm:inline">·</span>
+                                    <span className="text-muted-foreground">{displayTime}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent className="px-6 pt-0 pb-4">
-                     <Link href={`/post/${item.id}`} onClick={startLoader} className="group cursor-pointer">
+                    <div className="px-6 pt-0 pb-4">
                         <h3 className="mt-2 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                    </Link>
-                    <ExpandableText text={item.content} />
-                    {item.imageUrl && (
-                         <button className="mt-4 relative w-full h-[300px] sm:h-96 overflow-hidden rounded-lg group" onClick={() => onViewImage(item.imageUrl as string)}>
-                            <Image src={item.imageUrl} alt={item.headline} fill sizes="100vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                        </button>
-                    )}
-                    {pollData && <PollDisplay poll={pollData} onVote={handleVote} hasVoted={hasVoted} votedOptions={votedOnPolls.get(item.id)} toggleOption={togglePollOption} selectedOptions={selectedPollOptions} />}
-                </CardContent>
-                <CardFooter className="p-6 pt-0 border-t mt-4">
-                    <div className="w-full flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
-                        <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
-                            <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
-                            <span>{likeCount}</span>
-                        </Button>
-                        <Link href={`/post/${item.id}`} onClick={startLoader} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), "flex items-center gap-2")}>
-                            <Icons.comment className="h-4 w-4" />
-                            <span>{item.comments}</span>
-                        </Link>
-                        <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleShare}>
-                            <Icons.share className="h-4 w-4" />
-                            <span className="hidden sm:inline">Share</span>
-                        </Button>
-                        <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleAnalyze}>
-                            <Bot className="h-4 w-4" />
-                            <span className="hidden sm:inline">Analyze</span>
-                        </Button>
-                        {user && user.uid === item.userId && item.views !== undefined && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Eye className="h-4 w-4" />
-                                <span>{item.views.toLocaleString()} views</span>
+                        {item.content && <ExpandableText text={item.content} />}
+                        {item.imageUrl && (
+                             <button className="mt-4 relative w-full h-[300px] sm:h-96 overflow-hidden rounded-lg group" onClick={(e) => handleFooterAction(e, () => onViewImage(item.imageUrl!))}>
+                                <Image src={item.imageUrl} alt={item.headline} fill sizes="100vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                            </button>
+                        )}
+                        {pollState && (
+                            <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+                                <PollDisplay poll={pollState} userVote={votedOnPolls.get(item.id)} onVote={handleVote} hasVoted={hasVotedOnThisPoll} />
                             </div>
                         )}
-                        <div className="flex-grow" />
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <PlatformIcon />
-                            <span>{item.platform}</span>
-                        </div>
                     </div>
-                </CardFooter>
-            </Card>
+                    <CardFooter className="p-6 pt-0 border-t mt-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+                        <div className="w-full flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
+                            <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={(e) => handleFooterAction(e, handleLike)}>
+                                <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
+                                <span>{likeCount}</span>
+                            </Button>
+                            <ClientLink href={`/post/${item.id}`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), "flex items-center gap-2")}>
+                                <Icons.comment className="h-4 w-4" />
+                                <span>{item.comments}</span>
+                            </ClientLink>
+                            <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={(e) => handleFooterAction(e, handleShare)}>
+                                <Icons.share className="h-4 w-4" />
+                                <span className="hidden sm:inline">Share</span>
+                            </Button>
+                            <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={(e) => handleFooterAction(e, handleAnalyze)}>
+                                <Bot className="h-4 w-4" />
+                                <span className="hidden sm:inline">Analyze</span>
+                            </Button>
+                            {user && user.uid === item.userId && item.views !== undefined && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Eye className="h-4 w-4" />
+                                    <span>{item.views.toLocaleString()} views</span>
+                                </div>
+                            )}
+                            <div className="flex-grow" />
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                                <PlatformIcon />
+                                <span>{item.platform}</span>
+                            </div>
+                        </div>
+                    </CardFooter>
+                </Card>
+            </ClientLink>
             <Dialog open={isAnalysisOpen} onOpenChange={setIsAnalysisOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
@@ -306,6 +307,12 @@ const PinnedTopicCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; on
     const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
     const displayTime = getDisplayTime(item);
     const isLiked = likedPosts.has(item.id);
+
+    const handleFooterAction = (e: React.MouseEvent, action: (() => void) | (() => Promise<void>)) => {
+        e.stopPropagation();
+        e.preventDefault();
+        action();
+    }
 
     const handleLike = async () => {
         if (!user) { toast({ variant: "destructive", title: "Login Required", description: "You must be logged in to like posts." }); return; }
@@ -356,60 +363,60 @@ const PinnedTopicCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; on
 
     return (
         <>
-            <Card className="bg-primary/10 border-primary/40 shadow-lg p-0 animate-in fade-in-50 overflow-hidden">
-                <CardHeader className="p-6 pb-4">
-                    <div className="flex gap-2 items-center">
-                        <Star className="h-5 w-5 text-primary" />
-                        <h2 className="text-lg font-bold text-primary">Topic of the Day</h2>
-                    </div>
-                    <div className="flex items-start gap-4 pt-2">
-                        <Avatar>
-                            <AvatarImage src={item.avatar} alt={item.author} />
-                            <AvatarFallback>{item.author.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                             <div className="flex items-center gap-2 flex-wrap">
-                                <Link href={`/u/${item.handle.substring(1)}`} onClick={startLoader} className="font-bold hover:underline">{item.handle}</Link>
-                                <span className="text-muted-foreground hidden sm:inline">·</span>
-                                <span className="text-muted-foreground">{displayTime}</span>
+            <ClientLink href={`/post/${item.id}`} className="block group">
+                <Card className="bg-primary/10 border-primary/40 shadow-lg p-0 animate-in fade-in-50 overflow-hidden transition-all hover:border-primary">
+                    <div className="p-6 pb-4">
+                        <div className="flex gap-2 items-center">
+                            <Star className="h-5 w-5 text-primary" />
+                            <h2 className="text-lg font-bold text-primary">Topic of the Day</h2>
+                        </div>
+                        <div className="flex items-start gap-4 pt-2">
+                            <Avatar>
+                                <AvatarImage src={item.avatar} alt={item.handle} />
+                                <AvatarFallback>{item.handle.charAt(1)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <ClientLink href={`/u/${item.handle.substring(1)}`} className="font-bold hover:underline">{item.handle}</ClientLink>
+                                    <span className="text-muted-foreground hidden sm:inline">·</span>
+                                    <span className="text-muted-foreground">{displayTime}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </CardHeader>
 
-                <CardContent className="px-6 pt-0 pb-4">
-                     <Link href={`/post/${item.id}`} onClick={startLoader} className="group cursor-pointer">
+                    <div className="px-6 pt-0 pb-4">
                         <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
-                    </Link>
-                    <ExpandableText text={item.content} />
-                    {item.imageUrl && (
-                        <button className="mt-4 relative w-full h-96 sm:h-[500px] overflow-hidden rounded-lg group" onClick={() => onViewImage(item.imageUrl as string)}>
-                            <Image src={item.imageUrl} alt={item.headline} fill sizes="100vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                        </button>
-                    )}
-                </CardContent>
-
-                <CardFooter className="p-6 pt-0 border-t mt-4">
-                     <div className="w-full flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
-                        <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleLike}>
-                            <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
-                            <span>{likeCount}</span>
-                        </Button>
-                         <Link href={`/post/${item.id}`} onClick={startLoader} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), "flex items-center gap-2")}>
-                            <Icons.comment className="h-4 w-4" />
-                            <span>{item.comments}</span>
-                        </Link>
-                        <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleShare}>
-                            <Icons.share className="h-4 w-4" />
-                            <span className="hidden sm:inline">Share</span>
-                        </Button>
-                         <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={handleAnalyze}>
-                            <Bot className="h-4 w-4" />
-                            <span className="hidden sm:inline">Analyze</span>
-                        </Button>
+                        <ExpandableText text={item.content} />
+                        {item.imageUrl && (
+                            <button className="mt-4 relative w-full h-96 sm:h-[500px] overflow-hidden rounded-lg group" onClick={(e) => handleFooterAction(e, () => onViewImage(item.imageUrl!))}>
+                                <Image src={item.imageUrl} alt={item.headline} fill sizes="100vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                            </button>
+                        )}
                     </div>
-                </CardFooter>
-            </Card>
+
+                    <CardFooter className="p-6 pt-0 border-t mt-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+                        <div className="w-full flex flex-wrap items-center gap-1 sm:gap-6 text-muted-foreground">
+                            <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={(e) => handleFooterAction(e, handleLike)}>
+                                <Icons.heart className={`h-4 w-4 transition-all ${isLiked ? 'text-red-500 fill-current scale-110' : ''}`} />
+                                <span>{likeCount}</span>
+                            </Button>
+                             <ClientLink href={`/post/${item.id}`} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), "flex items-center gap-2")}>
+                                <Icons.comment className="h-4 w-4" />
+                                <span>{item.comments}</span>
+                            </ClientLink>
+                            <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={(e) => handleFooterAction(e, handleShare)}>
+                                <Icons.share className="h-4 w-4" />
+                                <span className="hidden sm:inline">Share</span>
+                            </Button>
+                             <Button variant="ghost" size="sm" className="flex items-center gap-2" onClick={(e) => handleFooterAction(e, handleAnalyze)}>
+                                <Bot className="h-4 w-4" />
+                                <span className="hidden sm:inline">Analyze</span>
+                            </Button>
+                        </div>
+                    </CardFooter>
+                </Card>
+            </ClientLink>
             <Dialog open={isAnalysisOpen} onOpenChange={setIsAnalysisOpen}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader><DialogTitle>AI Deep Dive</DialogTitle><DialogDescription>An AI-powered analysis of the post: "{item.headline}"</DialogDescription></DialogHeader>
@@ -438,17 +445,15 @@ function FeedPageComponent() {
   const { toast } = useToast();
   const { user, profile, addPoints } = useAuth();
   
-  const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", imageUrl: "", poll: { options: [{text: ""}, {text: ""}], allowMultipleVotes: false } } });
-  const watchedContent = addPostForm.watch('content');
-  const [isUploading, setIsUploading] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
+  const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", imageUrl: "", poll: { options: [{text: ""}, {text: ""}] } } });
+  const [isUploading, setIsUploading] = useState(false);
+  
 
   const { fields, append, remove } = useFieldArray({
     control: addPostForm.control,
     name: "poll.options",
   });
-  
-  const router = useRouter();
 
   const fetchFeed = useCallback(async (isRefresh = false) => {
     if (!db) {
@@ -499,18 +504,27 @@ function FeedPageComponent() {
             author: user.displayName || "Anonymous",
             handle: profile.handle,
             avatar: user.photoURL || `https://source.unsplash.com/random/100x100?portrait,user`,
-            time: "Just now", platform: "TechInk", headline: values.headline, content: values.content,
+            time: "Just now", platform: "TechInk", headline: values.headline, content: values.content || "",
             url: "#", 
-            imageUrl: values.imageUrl || undefined,
             likes: 0, comments: 0, views: 0,
             userId: user.uid,
         };
 
+        if (values.imageUrl) {
+            postData.imageUrl = values.imageUrl;
+        }
+
         if(showPoll && values.poll && values.poll.options.length >= 2) {
-            postData.poll = {
-                ...values.poll,
-                options: values.poll.options.map(o => ({ text: o.text, votes: 0 })),
+            postData.content = "";
+            const pollOptionsMap: { [key: string]: number } = {};
+            for (const option of values.poll.options) {
+                if (option.text) {
+                    pollOptionsMap[option.text] = 0;
+                }
             }
+            postData.poll = { options: pollOptionsMap, voters: {} };
+        } else {
+             postData.poll = undefined;
         }
 
         await addDoc(collection(db, "feedItems"), { ...postData, createdAt: serverTimestamp() });
@@ -623,7 +637,7 @@ function FeedPageComponent() {
                                             <Card key={topic.id} className="p-4 flex justify-between items-center"><div className="flex-1 mr-4">
                                                 <h3 className="font-semibold truncate">{topic.headline}</h3>
                                                 <p className="text-sm text-muted-foreground">{getDisplayTime(topic)}</p>
-                                            </div><Button variant="ghost" asChild><Link href={`/post/${topic.id}`} onClick={startLoader}>Read More <FileText className="ml-2 h-4 w-4" /></Link></Button></Card>
+                                            </div><Button variant="ghost" asChild><ClientLink href={`/post/${topic.id}`}>Read More <FileText className="ml-2 h-4 w-4" /></ClientLink></Button></Card>
                                         ))
                                     ) : (
                                         <p className="text-muted-foreground text-center py-4">No topics found matching your search.</p>
@@ -644,23 +658,25 @@ function FeedPageComponent() {
             <DialogTrigger asChild><Button className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-lg" size="icon"><Plus className="h-8 w-8" /><span className="sr-only">Add Post</span></Button></DialogTrigger>
             <DialogContent className="max-w-2xl flex flex-col h-full max-h-[90vh] p-0">
                 <DialogHeader className="p-6 pb-2">
-                    <DialogTitle>Create a New Post</DialogTitle>
+                    <DialogTitle>{showPoll ? 'Create a New Poll' : 'Create a New Post'}</DialogTitle>
                     <DialogDescription>Share your latest thoughts and insights with the community.</DialogDescription>
                 </DialogHeader>
                  <Form {...addPostForm}>
                     <form onSubmit={addPostForm.handleSubmit(onAddPostSubmit)} id="add-post-form" className="flex-1 flex flex-col overflow-hidden">
                         <ScrollArea className="flex-1 p-6 pt-0">
                             <div className="space-y-4">
-                                <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><Input className="border-0 border-b rounded-none focus-visible:ring-0 text-lg px-0" placeholder="Post Headline..." {...field} /></FormItem> )}/>
-                                <FormField control={addPostForm.control} name="content" render={({ field }) => ( 
-                                    <FormItem>
-                                        <Textarea placeholder="Share your detailed thoughts here... Markdown is supported and you can paste links!" className="border-0 focus-visible:ring-0 min-h-[150px] px-0" {...field} />
-                                        <FormDescription className="text-right">
-                                            {(watchedContent?.length || 0)} / {POST_CHARACTER_LIMIT}
-                                        </FormDescription>
-                                        <FormMessage />
-                                    </FormItem> 
-                                )}/>
+                                <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><Input className="border-0 border-b rounded-none focus-visible:ring-0 text-lg px-0" placeholder={showPoll ? "Ask a question..." : "Post Headline..."} {...field} /></FormItem> )}/>
+                                {!showPoll && (
+                                    <FormField control={addPostForm.control} name="content" render={({ field }) => ( 
+                                        <FormItem>
+                                            <Textarea placeholder="Share your detailed thoughts here... Markdown is supported and you can paste links!" className="border-0 focus-visible:ring-0 min-h-[150px] px-0" {...field} />
+                                            <FormDescription className="text-right">
+                                                {(field.value?.length || 0)} / {POST_CHARACTER_LIMIT}
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem> 
+                                    )}/>
+                                )}
                                 {showPoll && (
                                     <Card className="p-4 bg-muted/50">
                                         <div className="space-y-2">
@@ -673,12 +689,6 @@ function FeedPageComponent() {
                                                 )} />
                                             ))}
                                             {fields.length < 4 && <Button type="button" variant="ghost" onClick={() => append({ text: "" })}>Add Option</Button>}
-                                            <FormField control={addPostForm.control} name="poll.allowMultipleVotes" render={({ field }) => (
-                                                <FormItem className="flex items-center gap-2 pt-2">
-                                                    <Switch id="allowMultipleVotes" checked={field.value} onCheckedChange={field.onChange} />
-                                                    <Label htmlFor="allowMultipleVotes">Allow multiple votes</Label>
-                                                </FormItem>
-                                            )} />
                                         </div>
                                     </Card>
                                 )}
@@ -696,7 +706,7 @@ function FeedPageComponent() {
                                     <Button type="button" variant="ghost" size="icon" onClick={() => setShowPoll(!showPoll)}>
                                         <BarChart3 className="h-5 w-5" />
                                     </Button>
-                                </TooltipTrigger><TooltipContent><p>{showPoll ? 'Remove Poll' : 'Add Poll'}</p></TooltipContent></Tooltip></TooltipProvider>
+                                </TooltipTrigger><TooltipContent><p>{showPoll ? 'Switch to Post' : 'Add Poll'}</p></TooltipContent></Tooltip></TooltipProvider>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button type="button" variant="ghost" onClick={() => setIsAddPostOpen(false)}>Cancel</Button>
@@ -709,8 +719,8 @@ function FeedPageComponent() {
           </Dialog>
         )}
         <Dialog open={!!imageToView} onOpenChange={(isOpen) => !isOpen && setImageToView(null)}>
-            <DialogContent className="max-w-4xl max-h-[90vh] p-2 flex items-center justify-center">
-                {imageToView && <Image src={imageToView} alt="Full view" width={1920} height={1080} className="w-auto h-auto max-w-full max-h-[85vh] object-contain rounded-lg" />}
+            <DialogContent className="max-w-[90vw] max-h-[90vh] w-auto h-auto bg-transparent border-none shadow-none p-0">
+                {imageToView && <Image src={imageToView} alt="Full view" width={1920} height={1080} className="w-auto h-auto max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />}
             </DialogContent>
         </Dialog>
       <SiteFooter />
@@ -718,47 +728,41 @@ function FeedPageComponent() {
   );
 }
 
-const PollDisplay = ({ poll, onVote, hasVoted, votedOptions, toggleOption, selectedOptions }: { poll: Poll, onVote: () => void, hasVoted: boolean, votedOptions?: string[], toggleOption: (option: string) => void, selectedOptions: string[] }) => {
-    const totalVotes = poll.options.reduce((acc, option) => acc + (option.votes || 0), 0);
+const PollDisplay = ({ poll, userVote, onVote, hasVoted }: { poll: Poll; userVote: string | undefined, onVote: (option: string) => void; hasVoted: boolean; }) => {
+    const totalVotes = Object.values(poll.options).reduce((acc, votes) => acc + votes, 0);
   
     return (
       <div className="mt-4 space-y-2">
-        {poll.options.map((option, index) => {
-          const percentage = totalVotes > 0 ? ((option.votes || 0) / totalVotes) * 100 : 0;
-          const isSelected = selectedOptions.includes(option.text);
-          const wasVotedFor = votedOptions?.includes(option.text);
-  
-          if (hasVoted) {
+        {Object.entries(poll.options).map(([optionText, votes], index) => {
+            const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+            const isThisTheVotedOption = userVote === optionText;
+
+            if (hasVoted) {
+                return (
+                    <div key={index} className="relative w-full h-10 flex items-center rounded-md overflow-hidden border">
+                        <Progress value={percentage} className="absolute h-full rounded-md" />
+                        <div className="relative z-10 flex items-center justify-between w-full px-4">
+                            <div className="flex items-center gap-2 font-semibold">
+                               {isThisTheVotedOption && <CheckCircle2 className="h-4 w-4 text-primary" />} 
+                               <span>{optionText}</span>
+                            </div>
+                            <span className="font-bold">{percentage}%</span>
+                        </div>
+                    </div>
+                );
+            }
+    
             return (
-              <div key={index} className="relative w-full h-10 flex items-center rounded-md overflow-hidden border">
-                <Progress value={percentage} className="absolute h-full rounded-md" />
-                <div className="relative z-10 flex items-center justify-between w-full px-4">
-                  <div className="flex items-center gap-2">
-                    {wasVotedFor && <CheckCircle2 className="h-4 w-4 text-primary" />}
-                    <span className="font-semibold">{option.text}</span>
-                  </div>
-                  <span className="font-bold">{percentage.toFixed(0)}%</span>
-                </div>
-              </div>
+                <Button
+                    key={index}
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => onVote(optionText)}
+                >
+                    {optionText}
+                </Button>
             );
-          }
-  
-          return (
-            <Button
-              key={index}
-              variant={isSelected ? "default" : "outline"}
-              className="w-full justify-start"
-              onClick={() => toggleOption(option.text)}
-            >
-              {option.text}
-            </Button>
-          );
         })}
-        {!hasVoted && (
-          <Button onClick={onVote} className="w-full mt-2">
-            Cast Vote
-          </Button>
-        )}
       </div>
     );
   };

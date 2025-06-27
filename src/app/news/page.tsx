@@ -13,7 +13,6 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Article } from "@/ai/flows/generate-articles-flow";
-import { startLoader } from "@/lib/loader-events";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 type ArticleWithId = Article & { id: string };
@@ -128,7 +127,7 @@ export default function NewsPage() {
                                         {cardContent}
                                     </a>
                                 ) : (
-                                    <Link href={`/news/${item.id}`} className={commonCardClasses} onClick={startLoader}>
+                                    <Link href={`/news/${item.id}`} className={commonCardClasses}>
                                       {cardContent}
                                     </Link>
                                 )}

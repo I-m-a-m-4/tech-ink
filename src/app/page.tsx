@@ -4,7 +4,6 @@ import { Icons } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Typewriter } from "@/components/typewriter";
-import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -13,6 +12,7 @@ import Image from 'next/image';
 import { RetroTv3d } from "@/components/retro-tv-3d";
 import { type Article } from "@/ai/flows/generate-articles-flow";
 import { CircuitPen3d } from "@/components/circuit-pen-3d";
+import { ClientLink } from "@/components/client-link";
 
 
 async function getLatestArticles(): Promise<(Article & {id: string})[] | null> {
@@ -128,9 +128,9 @@ export default async function Home() {
                                   {cardContent}
                               </a>
                           ) : (
-                              <Link href={`/news/${article.id}`} className={commonCardClasses}>
+                              <ClientLink href={`/news/${article.id}`} className={commonCardClasses}>
                                   {cardContent}
-                              </Link>
+                              </ClientLink>
                           )}
                           </div>
                       );
@@ -144,9 +144,9 @@ export default async function Home() {
             {latestArticles && latestArticles.length > 0 && (
                 <div className="mt-12 text-center">
                     <Button asChild size="lg">
-                        <Link href="/news">
+                        <ClientLink href="/news">
                             View All Articles <Icons.arrowRight className="ml-2 h-5 w-5" />
-                        </Link>
+                        </ClientLink>
                     </Button>
                 </div>
             )}
@@ -192,7 +192,7 @@ export default async function Home() {
                     );
 
                     if (point.href) {
-                    return <Link href={point.href} key={point.title} className="block h-full">{cardContent}</Link>;
+                    return <ClientLink href={point.href} key={point.title} className="block h-full">{cardContent}</ClientLink>;
                     }
                     
                     return <div key={point.title}>{cardContent}</div>;
@@ -222,9 +222,9 @@ export default async function Home() {
              </p>
              <div className="mt-8">
                 <Button asChild size="lg">
-                    <Link href="https://chat.whatsapp.com/CbCQukJJUBIJv3hbx7Qin1" target="_blank" rel="noopener noreferrer">
+                    <a href="https://chat.whatsapp.com/CbCQukJJUBIJv3hbx7Qin1" target="_blank" rel="noopener noreferrer">
                         Join on WhatsApp <Icons.message className="ml-2 h-5 w-5" />
-                    </Link>
+                    </a>
                 </Button>
              </div>
            </div>

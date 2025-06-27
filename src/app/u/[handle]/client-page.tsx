@@ -3,17 +3,17 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenLine, Share2, AlertTriangle, ExternalLink, Link as LinkIcon } from 'lucide-react';
-import Link from 'next/link';
+import { PenLine, Share2, AlertTriangle, ExternalLink, Link as LinkIcon, Heart, MessageCircle, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
-import type { PageData, PostWithId } from './page';
+import type { PageData } from './page';
 import Image from 'next/image';
 import { useState } from 'react';
 import { UserBadge as RankBadge, getRank } from '@/components/user-badge';
 import { formatDistanceToNow } from 'date-fns';
 import { VerificationBadge } from '@/components/verification-badge';
+import { ClientLink } from '@/components/client-link';
 
 interface UserProfileClientPageProps {
     handle: string;
@@ -135,8 +135,8 @@ export default function UserProfileClientPage({ handle, initialData }: UserProfi
             ) : posts.length > 0 ? (
                 <div className="space-y-6">
                     {posts.map(post => (
-                        <Card key={post.id} className="p-6 transition-all hover:border-primary/50">
-                            <Link href={`/post/${post.id}`} className="block group">
+                        <ClientLink href={`/post/${post.id}`} key={post.id} className="block group">
+                            <Card className="p-6 transition-all hover:border-primary/50">
                                 <CardHeader className="p-0">
                                     <CardTitle className="group-hover:text-primary transition-colors">{post.headline}</CardTitle>
                                     <CardDescription className="pt-1">
@@ -144,9 +144,9 @@ export default function UserProfileClientPage({ handle, initialData }: UserProfi
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="p-0 pt-4">
-                                     <ExpandableText text={post.content} />
+                                     {post.content && <ExpandableText text={post.content} />}
                                     {post.imageUrl && (
-                                        <div className="relative w-full overflow-hidden rounded-lg mt-4 max-h-[300px] sm:max-h-[500px]">
+                                        <div className="relative aspect-video w-full overflow-hidden rounded-lg mt-4 max-h-[300px] sm:max-h-[500px]">
                                             <Image src={post.imageUrl} alt={post.headline} fill className="object-cover" />
                                         </div>
                                     )}
@@ -158,9 +158,14 @@ export default function UserProfileClientPage({ handle, initialData }: UserProfi
                                             </div>
                                         </div>
                                     )}
+                                     <div className="flex items-center gap-4 text-xs text-muted-foreground mt-4 pt-4 border-t">
+                                        <span className="flex items-center gap-1"><Heart className="h-3 w-3" /> {post.likes}</span>
+                                        <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {post.comments}</span>
+                                        {post.views !== undefined && <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {post.views}</span>}
+                                    </div>
                                 </CardContent>
-                            </Link>
-                        </Card>
+                            </Card>
+                        </ClientLink>
                     ))}
                 </div>
             ) : (
@@ -171,3 +176,5 @@ export default function UserProfileClientPage({ handle, initialData }: UserProfi
         </section>
     );
 }
+
+    

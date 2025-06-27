@@ -1,23 +1,21 @@
 
-import { doc, getDoc, Timestamp, collection, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from 'firebase/firestore';
 import { db, initializationError } from '@/lib/firebase';
 import { notFound } from 'next/navigation';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { Loader2, Share2, Bot, Eye, MessageCircle, Heart } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Suspense } from 'react';
 import { type Metadata, type ResolvingMetadata } from 'next';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import { Icons } from '@/components/icons';
 import { PostComments } from './comments-client';
 import type { PostWithId } from '@/types/post';
-import { startLoader } from '@/lib/loader-events';
+import { ClientLink } from '@/components/client-link';
 
 async function getPost(id: string): Promise<PostWithId | null> {
   if (initializationError || !db) return null;
@@ -68,7 +66,8 @@ export async function generateMetadata({ params }: { params: { id: string } }, p
     ? [{ url: post.imageUrl, width: 1200, height: 630, alt: post.headline }]
     : parentMetadata.openGraph?.images || [{ url: siteConfig.ogImage }];
 
-  const description = post.content.substring(0, 155) + (post.content.length > 155 ? '...' : '');
+  const description = post.content ? post.content.substring(0, 155) + (post.content.length > 155 ? '...' : '') : post.headline;
+
 
   return {
     title: post.headline,
@@ -125,7 +124,7 @@ export default async function PostPage({ params }: { params: { id: string }}) {
                                 </Avatar>
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <Link href={`/u/${post.handle.substring(1)}`} onClick={startLoader} className="font-bold hover:underline">{post.handle}</Link>
+                                        <ClientLink href={`/u/${post.handle.substring(1)}`} className="font-bold hover:underline">{post.handle}</ClientLink>
                                         <span className="text-muted-foreground hidden sm:inline">·</span>
                                         <span className="text-muted-foreground">{displayTime}</span>
                                     </div>
@@ -138,9 +137,11 @@ export default async function PostPage({ params }: { params: { id: string }}) {
                             
                             <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-4 text-balance">{post.headline}</h1>
                             
-                            <div className="prose dark:prose-invert max-w-full mb-6">
-                                <ReactMarkdown>{post.content}</ReactMarkdown>
-                            </div>
+                            {post.content && (
+                              <div className="prose dark:prose-invert max-w-full mb-6">
+                                  <ReactMarkdown>{post.content}</ReactMarkdown>
+                              </div>
+                            )}
 
                             {post.imageUrl && (
                                 <div className="relative aspect-video w-full overflow-hidden rounded-lg my-6 shadow-lg">

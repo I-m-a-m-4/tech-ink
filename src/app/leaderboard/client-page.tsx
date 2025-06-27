@@ -12,12 +12,16 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Trophy, AlertTriangle, PenLine, Award, Rocket, Share2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { UserBadge, getRank } from "@/components/user-badge";
 import type { UserData } from './page';
-import { startLoader } from "@/lib/loader-events";
+import { useEffect, useState } from "react";
+import { collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Loader2 } from "lucide-react";
+import { ClientLink } from "@/components/client-link";
+import { cn } from "@/lib/utils";
 
 interface LeaderboardClientPageProps {
     initialUsers: UserData[];
@@ -105,6 +109,39 @@ const RankingsExplanation = () => (
 
 
 export default function LeaderboardClientPage({ initialUsers, error }: LeaderboardClientPageProps) {
+  const [users, setUsers] = useState<UserData[]>(initialUsers);
+  const [isLoading, setIsLoading] = useState(initialUsers.length === 0 && !error);
+
+  useEffect(() => {
+    if (!db) return;
+    const usersCollection = collection(db, 'users');
+    const q = query(usersCollection, orderBy('points', 'desc'), limit(100));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const updatedUsers = snapshot.docs
+            .filter(doc => doc.data().email?.toLowerCase() !== (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase())
+            .map(doc => {
+                const docData = doc.data();
+                return {
+                    id: doc.id,
+                    displayName: docData.displayName || 'Anonymous User',
+                    handle: docData.handle || '@anonymous',
+                    points: docData.points || 0,
+                    email: docData.email,
+                    avatar: docData.avatar || `https://source.unsplash.com/random/100x100?portrait,user&sig=${doc.id}`,
+                    publicName: docData.publicName !== false,
+                } as UserData;
+            });
+        setUsers(updatedUsers);
+        setIsLoading(false);
+    }, (err) => {
+        console.error("Leaderboard snapshot error:", err);
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+  
   const getMedal = (rank: number) => {
     if (rank === 1) return <Trophy className="h-6 w-6 text-yellow-400" />;
     if (rank === 2) return <Trophy className="h-6 w-6 text-gray-400" />;
@@ -113,6 +150,16 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
   };
 
   const renderTableBody = () => {
+    if (isLoading) {
+        return (
+             <TableRow>
+                <TableCell colSpan={3} className="text-center h-48">
+                    <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
+                </TableCell>
+            </TableRow>
+        )
+    }
+
     if (error) {
         return (
             <TableRow>
@@ -125,7 +172,7 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
         );
     }
     
-    if (initialUsers.length === 0) {
+    if (users.length === 0) {
         return (
              <TableRow>
                 <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
@@ -135,7 +182,7 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
         );
     }
     
-    return initialUsers.map((user, index) => {
+    return users.map((user, index) => {
         const userRank = getRank(user.points || 0);
         return (
             <TableRow key={user.id} className={index < 3 ? 'bg-primary/5' : ''}>
@@ -143,19 +190,20 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
                     {getMedal(index + 1)}
                 </TableCell>
                 <TableCell>
-                    <Link href={`/u/${user.handle.substring(1)}`} onClick={startLoader} className="flex items-center gap-3 group">
+                    <ClientLink href={`/u/${user.handle.substring(1)}`} className="flex items-center gap-3 group">
                         <Avatar>
-                            <AvatarImage src={user.avatar} alt={user.handle} />
-                            <AvatarFallback>{user.handle.charAt(1)}</AvatarFallback>
+                            <AvatarImage src={user.avatar} alt={user.displayName} />
+                            <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div>
                              <div className="flex items-center gap-1.5">
                                 <p className="font-medium group-hover:text-primary group-hover:underline">{user.handle}</p>
                                 <UserBadge points={user.points} />
                             </div>
+                            {user.publicName && user.displayName && <p className="text-sm text-muted-foreground">{user.displayName}</p>}
                              <p className={`text-xs font-bold ${userRank.color}`}>{userRank.name}</p>
                         </div>
-                    </Link>
+                    </ClientLink>
                 </TableCell>
                 <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2 font-bold">

@@ -21,12 +21,12 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   likedPosts: Set<string>;
-  votedOnPolls: Map<string, string[]>; // <postId, optionTexts[]>
+  votedOnPolls: Map<string, string>; // postId -> optionText
   signOut: () => Promise<void>;
   addPoints: (amount: number) => Promise<void>;
   addLike: (postId: string, collectionName: 'feedItems' | 'dailyTopics') => Promise<void>;
   removeLike: (postId: string, collectionName: 'feedItems' | 'dailyTopics') => Promise<void>;
-  voteOnPoll: (postId: string, collectionName: 'feedItems' | 'dailyTopics', selectedOptions: string[], poll: Poll) => Promise<void>;
+  voteOnPoll: (postId: string, collectionName: 'feedItems' | 'dailyTopics', optionText: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
-  const [votedOnPolls, setVotedOnPolls] = useState<Map<string, string[]>>(new Map());
+  const [votedOnPolls, setVotedOnPolls] = useState<Map<string, string>>(new Map());
 
   const addPoints = useCallback(async (amount: number) => {
     if (!user || !db || user.email?.toLowerCase() === ADMIN_EMAIL) return;
@@ -109,47 +109,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const voteOnPoll = useCallback(async (postId: string, collectionName: 'feedItems' | 'dailyTopics', selectedOptions: string[], poll: Poll) => {
-      if (!user || !db) throw new Error("User not authenticated");
+  const voteOnPoll = useCallback(async (postId: string, collectionName: 'feedItems' | 'dailyTopics', optionText: string) => {
+    if (!user || !db) throw new Error("User not authenticated");
+
+    const postRef = doc(db, collectionName, postId);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const postDoc = await transaction.get(postRef);
+        if (!postDoc.exists()) throw new Error("Post does not exist.");
+        
+        const postData = postDoc.data();
+        const poll = postData.poll as (Poll & { voters?: Record<string, string> }) | undefined;
+
+        if (!poll) throw new Error("This post does not have a poll.");
+        if (poll.voters && poll.voters[user.uid]) throw new Error("You have already voted on this poll.");
+
+        const voteField = `poll.options.${optionText}`;
+        const voterField = `poll.voters.${user.uid}`;
+        
+        transaction.update(postRef, {
+            [voteField]: increment(1),
+            [voterField]: optionText
+        });
+      });
       
-      setVotedOnPolls(prev => new Map(prev).set(postId, selectedOptions));
+      setVotedOnPolls(prev => new Map(prev).set(postId, optionText));
+      addPoints(2);
 
-      try {
-          const voteRef = doc(db, "pollVotes", `${user.uid}_${postId}`);
-          const postRef = doc(db, collectionName, postId);
-
-          await runTransaction(db, async (transaction) => {
-              const voteDoc = await transaction.get(voteRef);
-              if (voteDoc.exists()) {
-                  throw new Error("You have already voted on this poll.");
-              }
-
-              const postDoc = await transaction.get(postRef);
-              if (!postDoc.exists()) throw new Error("Post does not exist.");
-              
-              const currentPollData = postDoc.data().poll as Poll;
-              if (!currentPollData) throw new Error("Poll data is missing from the post.");
-              
-              const newOptions = currentPollData.options.map(opt => {
-                  if (selectedOptions.includes(opt.text)) {
-                      return { ...opt, votes: (opt.votes || 0) + 1 };
-                  }
-                  return opt;
-              });
-              
-              transaction.update(postRef, { 'poll.options': newOptions });
-              transaction.set(voteRef, { userId: user.uid, postId: postId, options: selectedOptions, createdAt: serverTimestamp() });
-          });
-      } catch (error) {
-          setVotedOnPolls(prev => {
-              const newMap = new Map(prev);
-              newMap.delete(postId);
-              return newMap;
-          });
-          console.error("Error casting vote:", error);
-          throw error;
-      }
-  }, [user]);
+    } catch (error) {
+        console.error("Error casting vote:", error);
+        if (error instanceof Error && error.message.includes("already voted")) {
+          setVotedOnPolls(prev => new Map(prev).set(postId, "voted"));
+        }
+        throw error;
+    }
+  }, [user, addPoints]);
 
   useEffect(() => {
     if (initializationError || !auth || !db) {
@@ -158,51 +152,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      let isStillMounted = true;
       try {
         if (currentUser) {
+            if (!isStillMounted) return;
             setUser(currentUser);
 
             if (currentUser.email?.toLowerCase() === ADMIN_EMAIL) {
                 setProfile({ handle: '@admin', points: 0, publicName: true });
                 setLikedPosts(new Set());
                 setVotedOnPolls(new Map());
-            } else {
-                const userRef = doc(db, 'users', currentUser.uid);
-                const likesQuery = query(collection(db, 'likes'), where('userId', '==', currentUser.uid));
-                const pollVotesQuery = query(collection(db, "pollVotes"), where("userId", "==", currentUser.uid));
-                
-                const [docSnap, likesSnap, pollVotesSnap] = await Promise.all([
-                    getDoc(userRef),
-                    getDocs(likesQuery),
-                    getDocs(pollVotesQuery)
-                ]);
-
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    setProfile({ points: 0, publicName: true, ...data } as UserProfile);
-                } else {
-                    const baseHandle = (currentUser.displayName || currentUser.email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-                    const uniqueHandle = await findUniqueHandle(baseHandle);
-                    
-                    const newProfile: UserProfile = { handle: `@${uniqueHandle}`, points: 0, publicName: true };
-
-                    const batch = writeBatch(db);
-                    batch.set(userRef, { ...newProfile, email: currentUser.email, createdAt: serverTimestamp(), displayName: currentUser.displayName });
-                    batch.set(doc(db, 'handles', uniqueHandle), { userId: currentUser.uid });
-                    await batch.commit();
-                    
-                    setProfile(newProfile);
-                }
-
-                const userLikedPosts = new Set(likesSnap.docs.map(d => d.data().postId));
-                setLikedPosts(userLikedPosts);
-
-                const userVotedPolls = new Map<string, string[]>();
-                pollVotesSnap.forEach(doc => {
-                    userVotedPolls.set(doc.data().postId, doc.data().options);
-                });
-                setVotedOnPolls(userVotedPolls);
+                setLoading(false);
+                return;
             }
+
+            const userRef = doc(db, 'users', currentUser.uid);
+            const likesQuery = query(collection(db, 'likes'), where('userId', '==', currentUser.uid));
+            
+            const [docSnap, likesSnap] = await Promise.all([
+                getDoc(userRef),
+                getDocs(likesQuery)
+            ]);
+
+            if (!isStillMounted) return;
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setProfile({ points: 0, publicName: true, ...data } as UserProfile);
+            } else {
+                const baseHandle = (currentUser.displayName || currentUser.email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+                const uniqueHandle = await findUniqueHandle(baseHandle);
+                
+                const newProfile: UserProfile = { handle: `@${uniqueHandle}`, points: 0, publicName: true };
+
+                const batch = writeBatch(db);
+                batch.set(userRef, { ...newProfile, email: currentUser.email, createdAt: serverTimestamp(), displayName: currentUser.displayName });
+                batch.set(doc(db, 'handles', uniqueHandle), { userId: currentUser.uid });
+                await batch.commit();
+                
+                setProfile(newProfile);
+                setVotedOnPolls(new Map());
+            }
+
+            const userLikedPosts = new Set(likesSnap.docs.map(d => d.data().postId));
+            setLikedPosts(userLikedPosts);
         } else {
           setUser(null);
           setProfile(null);
@@ -211,15 +204,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Error in onAuthStateChanged:", error);
-        // If an error occurs (like permissions), sign out the user to prevent a broken state
-        if (auth.currentUser) {
-            await firebaseSignOut(auth);
+        if (isStillMounted && !currentUser) {
+            setUser(null);
+            setProfile(null);
         }
-        setUser(null);
-        setProfile(null);
       } finally {
-        setLoading(false);
+         if (isStillMounted) setLoading(false);
       }
+      return () => { isStillMounted = false; };
     });
 
     return () => unsubscribe();
@@ -234,11 +226,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   if (initializationError) {
     const errorValue = {
-        user: null,
-        profile: null,
-        loading: false,
+        user: null, profile: null, loading: false,
         likedPosts: new Set<string>(),
-        votedOnPolls: new Map<string, string[]>(),
+        votedOnPolls: new Map<string, string>(),
         signOut: async () => { console.error("Firebase not initialized."); },
         addPoints: async () => { console.error("Firebase not initialized."); },
         addLike: async () => { console.error("Firebase not initialized."); },

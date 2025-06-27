@@ -5,15 +5,11 @@
  */
 import {z} from 'zod';
 
-export const PollOptionSchema = z.object({
-  text: z.string().min(1, "Option text cannot be empty.").max(80, "Option text is too long."),
-  votes: z.number().int().default(0),
+export const PollSchema = z.object({
+  options: z.record(z.string().min(1, "Option text cannot be empty.").max(80, "Option text is too long."), z.number().int().default(0)),
+  voters: z.record(z.string(), z.string()).optional(), // Maps userId -> optionText
 });
 
-export const PollSchema = z.object({
-  options: z.array(PollOptionSchema).min(2, "A poll must have at least 2 options.").max(4, "A poll can have at most 4 options."),
-  allowMultipleVotes: z.boolean().default(false),
-});
 
 export const SocialFeedItemSchema = z.object({
   author: z.string().describe("The name of the post's author."),
@@ -35,4 +31,4 @@ export const SocialFeedItemSchema = z.object({
 
 export type SocialFeedItem = z.infer<typeof SocialFeedItemSchema>;
 export type Poll = z.infer<typeof PollSchema>;
-export type PollOption = z.infer<typeof PollOptionSchema>;
+export type PollOption = { text: string; votes: number }; // Kept for form handling if needed

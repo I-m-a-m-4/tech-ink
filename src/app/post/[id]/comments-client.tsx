@@ -17,16 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
 import { Separator } from "@/components/ui/separator";
 import Link from 'next/link';
-import type { PostWithId } from '@/types/post';
-
-type Comment = {
-    id: string;
-    text: string;
-    author: string;
-    avatar: string;
-    userId: string;
-    createdAt: Timestamp;
-}
+import type { PostWithId, Comment } from '@/types/post';
 
 const commentFormSchema = z.object({
     commentText: z.string().min(1, { message: "Comment cannot be empty." }).max(280, { message: "Comment is too long." }),
@@ -87,7 +78,6 @@ export function PostComments({ post }: { post: PostWithId }) {
         try {
             await batch.commit();
             addPoints(5);
-            toast({ title: "Comment posted!" });
             commentForm.reset();
         } catch (error) { 
             console.error("Comment post error:", error);

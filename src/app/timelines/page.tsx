@@ -3,11 +3,11 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db, initializationError } from '@/lib/firebase';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import Link from 'next/link';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
+import { ClientLink } from '@/components/client-link';
 
 type TimelineIndexItem = {
     id: string;
@@ -52,14 +52,14 @@ export default async function TimelinesIndexPage() {
                 {timelines.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {timelines.map(timeline => (
-                            <Link href={`/timelines/${timeline.id}`} key={timeline.id} className="block">
+                            <ClientLink href={`/timelines/${timeline.id}`} key={timeline.id} className="block">
                                 <Card className="h-full hover:border-primary transition-colors">
                                     <CardHeader>
                                         <CardTitle>{timeline.topic}</CardTitle>
                                         <CardDescription>{timeline.eventCount} key events</CardDescription>
                                     </CardHeader>
                                 </Card>
-                            </Link>
+                            </ClientLink>
                         ))}
                     </div>
                 ) : (

@@ -2,7 +2,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { Icons } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -21,8 +20,9 @@ import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/s
 import { Separator } from "./ui/separator";
 import { BackgroundSwitcher } from "./background-switcher";
 import { useRouter } from "next/navigation";
-import { startLoader } from "@/lib/loader-events";
 import { Shield } from 'lucide-react';
+import { ClientLink } from "./client-link";
+import { Skeleton } from "./ui/skeleton";
 
 const navLinks = [
     { href: "/news", label: "News", icon: <Icons.news className="h-5 w-5" /> },
@@ -33,42 +33,42 @@ const navLinks = [
 
 const NavLinkItems = ({ isMobile = false, closeSheet }: { isMobile?: boolean, closeSheet?: () => void }) => {
     const pathname = usePathname();
-    const handleLinkClick = (href: string) => {
-        if (pathname !== href) {
-            startLoader();
-        }
-        if (isMobile && closeSheet) {
-            closeSheet();
-        }
-    };
+
+    const linkContent = (link: typeof navLinks[0]) => (
+         <ClientLink
+            href={link.href}
+            onClick={isMobile ? closeSheet : undefined}
+            className={cn(
+                "flex items-center gap-2 transition-colors hover:text-primary",
+                pathname === link.href ? "text-primary font-semibold" : "text-foreground/70",
+                isMobile && "text-lg w-full p-4 rounded-lg hover:bg-muted"
+            )}
+        >
+            {link.icon}
+            <span>{link.label}</span>
+        </ClientLink>
+    );
+
     return (
         <>
             {navLinks.map((link) => {
-                const linkComponent = (
-                    <Link
-                        key={link.href}
-                        href={link.href}
-                        onClick={() => handleLinkClick(link.href)}
-                        className={cn(
-                            "flex items-center gap-2 transition-colors hover:text-primary",
-                            pathname === link.href ? "text-primary font-semibold" : "text-foreground/70",
-                            isMobile && "text-lg w-full p-4 rounded-lg hover:bg-muted"
-                        )}
-                    >
-                        {link.icon}
-                        <span>{link.label}</span>
-                    </Link>
-                );
-                return isMobile ? <div key={link.href}>{linkComponent}</div> : linkComponent;
+                if (isMobile) {
+                    return (
+                        <SheetClose asChild key={link.href}>
+                           {linkContent(link)}
+                        </SheetClose>
+                    );
+                }
+                return <React.Fragment key={link.href}>{linkContent(link)}</React.Fragment>;
             })}
         </>
     );
 };
 
+
 export function SiteHeader() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, loading: authLoading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
   const [isMobileSheetOpen, setIsMobileSheetOpen] = React.useState(false);
   const isAdmin = user?.email?.toLowerCase() === (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
 
@@ -79,14 +79,23 @@ export function SiteHeader() {
   }
   
   const UserActions = () => {
+      if (authLoading) {
+          return (
+              <div className="flex items-center gap-4">
+                  <Skeleton className="h-6 w-12" />
+                  <Skeleton className="h-9 w-9 rounded-full" />
+              </div>
+          )
+      }
+
       if (!user) {
           return (
                <div className="flex items-center gap-2">
                     <Button variant="ghost" asChild>
-                        <Link href="/login" onClick={() => pathname !== '/login' && startLoader()}>Login</Link>
+                        <ClientLink href="/login">Login</ClientLink>
                     </Button>
                     <Button asChild>
-                        <Link href="/signup" onClick={() => pathname !== '/signup' && startLoader()}>Sign Up</Link>
+                        <ClientLink href="/signup">Sign Up</ClientLink>
                     </Button>
                 </div>
           )
@@ -100,7 +109,7 @@ export function SiteHeader() {
                     </div>
                 ) : (
                     <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                        <Icons.gem className="h-4 w-4" />
+                        <Icons.pen className="h-4 w-4" />
                         <span>{profile?.points ?? 0}</span>
                     </div>
                 )}
@@ -126,10 +135,10 @@ export function SiteHeader() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                        <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}>
+                        <ClientLink href="/settings">
                             <Icons.cog className="mr-2 h-4 w-4" />
                             <span>Settings</span>
-                        </Link>
+                        </ClientLink>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleSignOut}>
                     <Icons.logout className="mr-2 h-4 w-4" />
@@ -145,9 +154,9 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center px-4 sm:px-6">
         <div className="flex-1 flex justify-start">
-            <Link href="/" className="flex items-center gap-2" onClick={() => pathname !== '/' && startLoader()}>
+            <ClientLink href="/" className="flex items-center gap-2">
                 <Icons.logo />
-            </Link>
+            </ClientLink>
         </div>
         
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
@@ -171,9 +180,11 @@ export function SiteHeader() {
                 </SheetTrigger>
                 <SheetContent side="right" className="w-[85vw] p-0 flex flex-col">
                   <div className="p-6 border-b">
-                    <Link href="/" className="flex items-center gap-2" onClick={() => {if(pathname !== '/') startLoader(); setIsMobileSheetOpen(false);}}>
-                        <Icons.logo />
-                    </Link>
+                    <SheetClose asChild>
+                        <ClientLink href="/" className="flex items-center gap-2">
+                            <Icons.logo />
+                        </ClientLink>
+                    </SheetClose>
                   </div>
                   <nav className="flex flex-col gap-2 p-4">
                       <NavLinkItems isMobile={true} closeSheet={() => setIsMobileSheetOpen(false)} />
@@ -199,7 +210,7 @@ export function SiteHeader() {
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 text-lg font-semibold text-primary p-4 rounded-lg bg-muted">
-                                    <Icons.gem className="h-5 w-5" />
+                                    <Icons.pen className="h-5 w-5" />
                                     <span>{profile?.points ?? 0} Insight Points</span>
                                 </div>
                             )}
@@ -210,10 +221,10 @@ export function SiteHeader() {
                      ) : (
                         <div className="grid gap-2">
                             <SheetClose asChild>
-                                <Button variant="outline" asChild><Link href="/login">Login</Link></Button>
+                                <Button variant="outline" asChild><ClientLink href="/login">Login</ClientLink></Button>
                             </SheetClose>
                              <SheetClose asChild>
-                                <Button asChild><Link href="/signup">Sign Up</Link></Button>
+                                <Button asChild><ClientLink href="/signup">Sign Up</ClientLink></Button>
                             </SheetClose>
                         </div>
                      )}
@@ -221,7 +232,7 @@ export function SiteHeader() {
                     <div className="mt-auto flex flex-col items-center gap-4 p-6 border-t">
                         <SheetClose asChild>
                             <Button variant="secondary" asChild className="w-full">
-                                <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}>Settings</Link>
+                                <ClientLink href="/settings">Settings</ClientLink>
                             </Button>
                         </SheetClose>
                       <BackgroundSwitcher />

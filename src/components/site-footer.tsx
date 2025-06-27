@@ -43,7 +43,7 @@ export function SiteFooter() {
                 <div className="mt-8 border-t pt-6 text-center text-sm text-muted-foreground space-y-2">
                      <p>&copy; {new Date().getFullYear()} Tech Ink Insights. All Rights Reserved.</p>
                      <p className="flex items-center justify-center gap-1.5">
-                        Made with <Icons.heart className="h-4 w-4 text-red-500 fill-current" /> by Bime
+                        Made with <Icons.heart className="h-4 w-4 text-red-500 fill-current" /> by <a href="https://wa.me/2348128064110" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">Bime</a>
                     </p>
                 </div>
             </div>

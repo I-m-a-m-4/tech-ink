@@ -1,28 +1,39 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { updateProfile, deleteUser } from 'firebase/auth';
+import { updateProfile } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, updateDoc, collection, query, where, getDocs, orderBy, deleteDoc, writeBatch } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, orderBy, deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { SiteHeader } from '@/components/site-header';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
-import { Loader2, PenLine, User as UserIcon, Mail, AtSign, Trash2, Heart, MessageCircle, Eye, Edit, Shield } from 'lucide-react';
+import { Loader2, PenLine, User as UserIcon, Mail, AtSign, Trash2, Heart, MessageCircle, Eye } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { type SocialFeedItem } from '@/ai/schemas/social-feed-item-schema';
 import { formatDistanceToNow } from 'date-fns';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import { ClientLink } from '@/components/client-link';
 
 const profileFormSchema = z.object({
   displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }).max(50, { message: "Display name must be less than 50 characters." }),
@@ -259,41 +270,48 @@ export default function SettingsPage() {
                         ) : myPosts.length > 0 ? (
                             <div className="space-y-4">
                                 {myPosts.map(post => (
-                                    <Card key={post.id} className="p-4 flex items-center justify-between">
-                                        <div className="flex-1 overflow-hidden">
-                                            <p className="font-semibold truncate">{post.headline}</p>
-                                            <p className="text-sm text-muted-foreground truncate">{post.content}</p>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Posted {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : ''}
-                                            </p>
-                                        </div>
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon">
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                    <span className="sr-only">Delete post</span>
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This action cannot be undone. This will permanently delete your post from the feed.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDeletePost(post.id)}>Delete</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </Card>
+                                    <ClientLink href={`/post/${post.id}`} key={post.id} className="block group">
+                                        <Card className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                                            <div className="flex-1 overflow-hidden">
+                                                <p className="font-semibold truncate">{post.headline}</p>
+                                                <p className="text-sm text-muted-foreground truncate">{post.content}</p>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Posted {post.createdAt ? formatDistanceToNow(post.createdAt.toDate(), { addSuffix: true }) : ''}
+                                                </p>
+                                                 <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
+                                                    <span className="flex items-center gap-1"><Heart className="h-3 w-3" /> {post.likes}</span>
+                                                    <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {post.comments}</span>
+                                                    {post.views !== undefined && <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {post.views}</span>}
+                                                </div>
+                                            </div>
+                                            <AlertDialog onOpenChange={(e) => e && event?.stopPropagation()}>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                        <span className="sr-only">Delete post</span>
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete your post from the feed.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={(e) => {e.preventDefault(); e.stopPropagation(); handleDeletePost(post.id)}}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </Card>
+                                    </ClientLink>
                                 ))}
                             </div>
                         ) : (
                             <div className="text-center text-muted-foreground py-8">
                                 <p>You haven't made any posts yet.</p>
-                                <Button variant="link" asChild className="mt-2"><a href="/feed">Start a conversation</a></Button>
+                                <Button variant="link" asChild className="mt-2"><ClientLink href="/feed">Start a conversation</ClientLink></Button>
                             </div>
                         )}
                     </CardContent>
