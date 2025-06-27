@@ -1,8 +1,9 @@
+
 /**
  * @fileOverview Defines the Zod schema and TypeScript type for a news article.
  * This is shared across multiple files.
  */
-import {z} from 'genkit';
+import {z} from 'zod';
 
 export const ArticleSchema = z.object({
   title: z.string().describe("The compelling title of the news article."),

@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const AnalyzePostInputSchema = z.object({
   headline: z.string().describe("The headline of the post."),

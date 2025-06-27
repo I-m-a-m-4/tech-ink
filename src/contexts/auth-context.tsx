@@ -5,11 +5,15 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useCall
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth, db, initializationError } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment, collection, query, where, writeBatch, deleteDoc, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment, collection, query, where, writeBatch, getDocs, runTransaction } from 'firebase/firestore';
+import type { Poll } from '@/ai/schemas/social-feed-item-schema';
+
+const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
 
 export interface UserProfile {
   handle: string;
   points: number;
+  publicName: boolean;
 }
 
 interface AuthContextType {
@@ -17,15 +21,16 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   likedPosts: Set<string>;
+  votedOnPolls: Map<string, string[]>; // <postId, optionTexts[]>
   signOut: () => Promise<void>;
   addPoints: (amount: number) => Promise<void>;
   addLike: (postId: string, collectionName: 'feedItems' | 'dailyTopics') => Promise<void>;
   removeLike: (postId: string, collectionName: 'feedItems' | 'dailyTopics') => Promise<void>;
+  voteOnPoll: (postId: string, collectionName: 'feedItems' | 'dailyTopics', selectedOptions: string[], poll: Poll) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Function to check handle uniqueness and find an available one.
 const findUniqueHandle = async (baseHandle: string): Promise<string> => {
     if (!db) throw new Error("Firestore not initialized");
     let handle = baseHandle;
@@ -41,7 +46,7 @@ const findUniqueHandle = async (baseHandle: string): Promise<string> => {
         }
         attempts++;
     }
-    if (!isUnique) return `${baseHandle}${Date.now()}`; // Fallback for rare cases
+    if (!isUnique) return `${baseHandle}${Date.now()}`;
     return handle;
 }
 
@@ -50,9 +55,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [votedOnPolls, setVotedOnPolls] = useState<Map<string, string[]>>(new Map());
 
   const addPoints = useCallback(async (amount: number) => {
-    if (!user || !db) return;
+    if (!user || !db || user.email?.toLowerCase() === ADMIN_EMAIL) return;
     const userRef = doc(db, 'users', user.uid);
     try {
       await updateDoc(userRef, { points: increment(amount) });
@@ -64,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addLike = useCallback(async (postId: string, collectionName: 'feedItems' | 'dailyTopics') => {
     if (!user || !db) return;
-    setLikedPosts(prev => new Set(prev).add(postId)); // Optimistic update
+    setLikedPosts(prev => new Set(prev).add(postId));
     try {
         const batch = writeBatch(db);
         const postRef = doc(db, collectionName, postId);
@@ -73,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         batch.set(likeRef, { userId: user.uid, postId: postId, createdAt: serverTimestamp() });
         await batch.commit();
     } catch(e) {
-        setLikedPosts(prev => { // Revert on failure
+        setLikedPosts(prev => {
             const newSet = new Set(prev);
             newSet.delete(postId);
             return newSet;
@@ -84,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const removeLike = useCallback(async (postId: string, collectionName: 'feedItems' | 'dailyTopics') => {
     if (!user || !db) return;
-    setLikedPosts(prev => { // Optimistic update
+    setLikedPosts(prev => {
         const newSet = new Set(prev);
         newSet.delete(postId);
         return newSet;
@@ -98,9 +104,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         batch.delete(likeRef);
         await batch.commit();
     } catch (e) {
-        setLikedPosts(prev => new Set(prev).add(postId)); // Revert on failure
+        setLikedPosts(prev => new Set(prev).add(postId));
         throw e;
     }
+  }, [user]);
+
+  const voteOnPoll = useCallback(async (postId: string, collectionName: 'feedItems' | 'dailyTopics', selectedOptions: string[], poll: Poll) => {
+      if (!user || !db) throw new Error("User not authenticated");
+      
+      setVotedOnPolls(prev => new Map(prev).set(postId, selectedOptions));
+
+      try {
+          const voteRef = doc(db, "pollVotes", `${user.uid}_${postId}`);
+          const postRef = doc(db, collectionName, postId);
+
+          await runTransaction(db, async (transaction) => {
+              const voteDoc = await transaction.get(voteRef);
+              if (voteDoc.exists()) {
+                  throw new Error("You have already voted on this poll.");
+              }
+
+              const postDoc = await transaction.get(postRef);
+              if (!postDoc.exists()) throw new Error("Post does not exist.");
+              
+              const currentPollData = postDoc.data().poll as Poll;
+              if (!currentPollData) throw new Error("Poll data is missing from the post.");
+              
+              const newOptions = currentPollData.options.map(opt => {
+                  if (selectedOptions.includes(opt.text)) {
+                      return { ...opt, votes: (opt.votes || 0) + 1 };
+                  }
+                  return opt;
+              });
+              
+              transaction.update(postRef, { 'poll.options': newOptions });
+              transaction.set(voteRef, { userId: user.uid, postId: postId, options: selectedOptions, createdAt: serverTimestamp() });
+          });
+      } catch (error) {
+          setVotedOnPolls(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(postId);
+              return newMap;
+          });
+          console.error("Error casting vote:", error);
+          throw error;
+      }
   }, [user]);
 
   useEffect(() => {
@@ -112,49 +160,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
         if (currentUser) {
-          setUser(currentUser);
-          const userRef = doc(db, 'users', currentUser.uid);
-          const likesQuery = query(collection(db, 'likes'), where('userId', '==', currentUser.uid));
-          
-          const [docSnap, likesSnap] = await Promise.all([
-            getDoc(userRef),
-            getDocs(likesQuery)
-          ]);
+            setUser(currentUser);
 
-          if (docSnap.exists()) {
-            setProfile({ points: 0, ...docSnap.data() } as UserProfile);
-          } else {
-            const baseHandle = (currentUser.displayName || currentUser.email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-            const uniqueHandle = await findUniqueHandle(baseHandle);
-            
-            const newProfile: UserProfile = {
-              handle: `@${uniqueHandle}`,
-              points: 0,
-            };
+            if (currentUser.email?.toLowerCase() === ADMIN_EMAIL) {
+                setProfile({ handle: '@admin', points: 0, publicName: true });
+                setLikedPosts(new Set());
+                setVotedOnPolls(new Map());
+            } else {
+                const userRef = doc(db, 'users', currentUser.uid);
+                const likesQuery = query(collection(db, 'likes'), where('userId', '==', currentUser.uid));
+                const pollVotesQuery = query(collection(db, "pollVotes"), where("userId", "==", currentUser.uid));
+                
+                const [docSnap, likesSnap, pollVotesSnap] = await Promise.all([
+                    getDoc(userRef),
+                    getDocs(likesQuery),
+                    getDocs(pollVotesQuery)
+                ]);
 
-            const batch = writeBatch(db);
-            batch.set(userRef, {
-              ...newProfile,
-              email: currentUser.email,
-              createdAt: serverTimestamp(),
-              displayName: currentUser.displayName,
-            });
-            batch.set(doc(db, 'handles', uniqueHandle), { userId: currentUser.uid });
-            await batch.commit();
-            
-            setProfile(newProfile);
-          }
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setProfile({ points: 0, publicName: true, ...data } as UserProfile);
+                } else {
+                    const baseHandle = (currentUser.displayName || currentUser.email?.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+                    const uniqueHandle = await findUniqueHandle(baseHandle);
+                    
+                    const newProfile: UserProfile = { handle: `@${uniqueHandle}`, points: 0, publicName: true };
 
-          const userLikedPosts = new Set(likesSnap.docs.map(d => d.data().postId));
-          setLikedPosts(userLikedPosts);
+                    const batch = writeBatch(db);
+                    batch.set(userRef, { ...newProfile, email: currentUser.email, createdAt: serverTimestamp(), displayName: currentUser.displayName });
+                    batch.set(doc(db, 'handles', uniqueHandle), { userId: currentUser.uid });
+                    await batch.commit();
+                    
+                    setProfile(newProfile);
+                }
 
+                const userLikedPosts = new Set(likesSnap.docs.map(d => d.data().postId));
+                setLikedPosts(userLikedPosts);
+
+                const userVotedPolls = new Map<string, string[]>();
+                pollVotesSnap.forEach(doc => {
+                    userVotedPolls.set(doc.data().postId, doc.data().options);
+                });
+                setVotedOnPolls(userVotedPolls);
+            }
         } else {
           setUser(null);
           setProfile(null);
           setLikedPosts(new Set());
+          setVotedOnPolls(new Map());
         }
       } catch (error) {
         console.error("Error in onAuthStateChanged:", error);
+        // If an error occurs (like permissions), sign out the user to prevent a broken state
+        if (auth.currentUser) {
+            await firebaseSignOut(auth);
+        }
         setUser(null);
         setProfile(null);
       } finally {
@@ -170,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await firebaseSignOut(auth);
   }, []);
 
-  const value = useMemo(() => ({ user, profile, loading, signOut, addPoints, likedPosts, addLike, removeLike }), [user, profile, loading, signOut, addPoints, likedPosts, addLike, removeLike]);
+  const value = useMemo(() => ({ user, profile, loading, signOut, addPoints, likedPosts, addLike, removeLike, votedOnPolls, voteOnPoll }), [user, profile, loading, signOut, addPoints, likedPosts, addLike, removeLike, votedOnPolls, voteOnPoll]);
   
   if (initializationError) {
     const errorValue = {
@@ -178,10 +238,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         profile: null,
         loading: false,
         likedPosts: new Set<string>(),
+        votedOnPolls: new Map<string, string[]>(),
         signOut: async () => { console.error("Firebase not initialized."); },
         addPoints: async () => { console.error("Firebase not initialized."); },
         addLike: async () => { console.error("Firebase not initialized."); },
         removeLike: async () => { console.error("Firebase not initialized."); },
+        voteOnPoll: async () => { console.error("Firebase not initialized."); throw new Error("Firebase not initialized."); },
     };
     return <AuthContext.Provider value={errorValue}>{children}</AuthContext.Provider>;
   }

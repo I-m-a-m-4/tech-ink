@@ -3,21 +3,50 @@ import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db, initializationError } from '@/lib/firebase';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import type { UserProfile } from '@/contexts/auth-context';
 import LeaderboardClientPage from './client-page';
 import { Suspense } from 'react';
-import { Award, BarChart, Rocket, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart, Loader2 } from 'lucide-react';
+import { type Metadata } from 'next';
+import type { UserProfile } from '@/contexts/auth-context';
+
+const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
 
 export const revalidate = 0; // Ensures fresh data on every request
 
-type UserData = UserProfile & {
+const shareImage = 'https://res.cloudinary.com/dd1czj85j/image/upload/v1751147040/share-mission_hms5l5.png';
+
+export const metadata: Metadata = {
+    title: 'Community Leaderboard',
+    description: 'See who\'s making the biggest impact. The first two members to achieve 1M Ink Points will be rewarded with 5% equity in Tech Ink Insights.',
+    openGraph: {
+        title: 'The Race to 1 Million Ink!',
+        description: 'Join the community and earn equity in Tech Ink Insights.',
+        url: 'https://tech-ink.vercel.app/leaderboard',
+        images: [
+            {
+                url: shareImage,
+                width: 1200,
+                height: 630,
+                alt: 'The Race to 1 Million Ink on Tech Ink Insights',
+            },
+        ],
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'The Race to 1 Million Ink!',
+        description: 'Join the community and earn equity in Tech Ink Insights.',
+        images: [shareImage],
+    },
+};
+
+export type UserData = UserProfile & {
     id: string;
     displayName: string;
     email: string;
     avatar?: string;
     points: number;
     handle: string;
+    publicName: boolean;
 };
 
 async function getTopUsers(): Promise<{ data: UserData[], error: boolean }> {
@@ -30,7 +59,9 @@ async function getTopUsers(): Promise<{ data: UserData[], error: boolean }> {
     const usersSnapshot = await getDocs(q);
 
     if (!usersSnapshot.empty) {
-        const data = usersSnapshot.docs.map(doc => {
+        const data = usersSnapshot.docs
+        .filter(doc => doc.data().email?.toLowerCase() !== ADMIN_EMAIL)
+        .map(doc => {
             const docData = doc.data();
             return {
                 id: doc.id,
@@ -38,7 +69,8 @@ async function getTopUsers(): Promise<{ data: UserData[], error: boolean }> {
                 handle: docData.handle || '@anonymous',
                 points: docData.points || 0,
                 email: docData.email,
-                avatar: docData.avatar || `https://source.unsplash.com/random/100x100?portrait,user&sig=${doc.id}`
+                avatar: docData.avatar || `https://source.unsplash.com/random/100x100?portrait,user&sig=${doc.id}`,
+                publicName: docData.publicName !== false, // Default to true if undefined
             };
         }) as UserData[];
         return { data, error: false };
@@ -67,7 +99,7 @@ export default async function LeaderboardPage() {
                     </p>
                 </div>
                 
-                <Suspense fallback={<Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />}>
+                <Suspense fallback={<div className="flex items-center justify-center p-12"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
                    <LeaderboardClientPage initialUsers={users} error={error} />
                 </Suspense>
             </div>
@@ -77,5 +109,3 @@ export default async function LeaderboardPage() {
     </div>
   );
 }
-
-    

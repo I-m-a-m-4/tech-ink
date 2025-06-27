@@ -2,7 +2,7 @@
 /**
  * @fileOverview Defines the Zod schema and TypeScript type for a timeline event.
  */
-import {z} from 'genkit';
+import {z} from 'zod';
 
 export const TimelineEventSchema = z.object({
   year: z.string().describe("The year the event occurred."),

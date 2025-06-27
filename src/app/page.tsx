@@ -105,7 +105,12 @@ export default async function Home() {
                       const cardContent = (
                           <>
                               <div className="relative h-64 w-full">
-                                  <Image src={article.imageUrl} alt={article.title} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                                  <Image 
+                                    src={article.imageUrl} 
+                                    alt={article.title} 
+                                    fill 
+                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                    className="object-cover transition-transform duration-300 group-hover:scale-105" />
                               </div>
                               <div className="p-6">
                                   <h3 className="text-xl font-bold text-card-foreground">{article.title}</h3>

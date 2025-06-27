@@ -1,7 +1,8 @@
+
 /**
  * @fileOverview Defines the Zod schemas and TypeScript types for the problem analysis feature.
  */
-import {z} from 'genkit';
+import {z} from 'zod';
 
 export const AnalyzeProblemInputSchema = z.object({
   problem: z.string().describe('A detailed description of the problem or topic to be analyzed.'),

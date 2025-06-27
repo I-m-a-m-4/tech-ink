@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const GenerateBriefingInputSchema = z.object({
   userId: z.string().describe("The ID of the user requesting the briefing."),

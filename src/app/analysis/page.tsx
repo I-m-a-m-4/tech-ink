@@ -27,6 +27,13 @@ const formSchema = z.object({
     .max(5000, { message: "The problem description must be less than 5,000 characters." }),
 });
 
+const suggestions = [
+  "Challenges and opportunities for developing a hyper-local logistics service in Lagos, Nigeria.",
+  "The future of decentralized finance (DeFi) in Africa and its potential to leapfrog traditional banking.",
+  "How can AI be effectively used to improve agricultural yields for small-scale farmers in emerging markets?",
+  "What are the primary ethical concerns and regulatory hurdles for deploying autonomous drones for medical supply delivery in remote areas?",
+];
+
 export default function AnalysisPage() {
   const [analysisResult, setAnalysisResult] = useState<AnalyzeProblemOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +54,6 @@ export default function AnalysisPage() {
     setIsLoading(true);
     setAnalysisResult(null);
     addPoints(20);
-    toast({ title: "+20 Insight Points!", description: "You've earned points for seeking deep analysis." });
 
     try {
       const result = await analyzeProblem(values);
@@ -148,6 +154,33 @@ export default function AnalysisPage() {
                         </Form>
                         </CardContent>
                     </Card>
+
+                     <div className="mt-12">
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                                <div className="w-full border-t border-dashed border-border" />
+                            </div>
+                            <div className="relative flex justify-center">
+                                <span className="bg-background px-4 text-muted-foreground">OR</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 text-center">
+                            <h3 className="text-lg font-semibold">Get inspired with a sample topic</h3>
+                            <p className="text-muted-foreground text-sm">Click one to populate the text area above.</p>
+                        </div>
+
+                        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {suggestions.map((s, i) => (
+                            <Card key={i} className="p-4 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => {
+                                form.setValue('problem', s);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}>
+                                <p className="font-medium text-sm">{s}</p>
+                            </Card>
+                            ))}
+                        </div>
+                    </div>
 
                     {(isLoading || analysisResult) && (
                         <div className="mt-12">

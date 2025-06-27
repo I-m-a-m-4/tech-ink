@@ -7,7 +7,6 @@ import { SiteFooter } from '@/components/site-footer';
 import { Loader2, Share2, Bot, Eye, MessageCircle, Heart } from 'lucide-react';
 import { Suspense } from 'react';
 import { type Metadata, type ResolvingMetadata } from 'next';
-import { type SocialFeedItem } from '@/ai/schemas/social-feed-item-schema';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -18,6 +17,7 @@ import ReactMarkdown from 'react-markdown';
 import { Icons } from '@/components/icons';
 import { PostComments } from './comments-client';
 import type { PostWithId } from '@/types/post';
+import { startLoader } from '@/lib/loader-events';
 
 async function getPost(id: string): Promise<PostWithId | null> {
   if (initializationError || !db) return null;
@@ -125,8 +125,7 @@ export default async function PostPage({ params }: { params: { id: string }}) {
                                 </Avatar>
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <Link href={`/u/${post.handle.substring(1)}`} className="font-bold hover:underline">{post.author}</Link>
-                                        <Link href={`/u/${post.handle.substring(1)}`} className="text-muted-foreground hover:underline">{post.handle}</Link>
+                                        <Link href={`/u/${post.handle.substring(1)}`} onClick={startLoader} className="font-bold hover:underline">{post.handle}</Link>
                                         <span className="text-muted-foreground hidden sm:inline">·</span>
                                         <span className="text-muted-foreground">{displayTime}</span>
                                     </div>
@@ -145,7 +144,7 @@ export default async function PostPage({ params }: { params: { id: string }}) {
 
                             {post.imageUrl && (
                                 <div className="relative aspect-video w-full overflow-hidden rounded-lg my-6 shadow-lg">
-                                    <Image src={post.imageUrl} alt={post.headline} fill className="object-cover" />
+                                    <Image src={post.imageUrl} alt={post.headline} fill sizes="100vw" className="object-cover" />
                                 </div>
                             )}
 

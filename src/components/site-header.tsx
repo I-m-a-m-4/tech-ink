@@ -22,15 +22,13 @@ import { Separator } from "./ui/separator";
 import { BackgroundSwitcher } from "./background-switcher";
 import { useRouter } from "next/navigation";
 import { startLoader } from "@/lib/loader-events";
-import { BrainCircuit } from "lucide-react";
-import { ScrollArea } from "./ui/scroll-area";
+import { Shield } from 'lucide-react';
 
 const navLinks = [
     { href: "/news", label: "News", icon: <Icons.news className="h-5 w-5" /> },
     { href: "/insights", label: "Insights", icon: <Icons.insights className="h-5 w-5" /> },
     { href: "/feed", label: "Feed", icon: <Icons.feed className="h-5 w-5" /> },
     { href: "/leaderboard", label: "Leaderboard", icon: <Icons.trophy className="h-5 w-5" /> },
-    { href: "/analysis", label: "Analysis", icon: <BrainCircuit className="h-5 w-5" /> },
 ];
 
 const NavLinkItems = ({ isMobile = false, closeSheet }: { isMobile?: boolean, closeSheet?: () => void }) => {
@@ -72,6 +70,7 @@ export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
   const [isMobileSheetOpen, setIsMobileSheetOpen] = React.useState(false);
+  const isAdmin = user?.email?.toLowerCase() === (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
 
 
   const handleSignOut = async () => {
@@ -94,10 +93,17 @@ export function SiteHeader() {
       }
       return (
            <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <Icons.pen className="h-4 w-4" />
-                <span>{profile?.points ?? 0}</span>
-                </div>
+                {isAdmin ? (
+                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-400">
+                        <Shield className="h-4 w-4" />
+                        <span>Admin</span>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                        <Icons.gem className="h-4 w-4" />
+                        <span>{profile?.points ?? 0}</span>
+                    </div>
+                )}
                 <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                      <Button variant="ghost" className="relative h-9 w-9 rounded-full">
@@ -169,50 +175,55 @@ export function SiteHeader() {
                         <Icons.logo />
                     </Link>
                   </div>
-                  <ScrollArea className="flex-1">
-                      <nav className="flex flex-col gap-2 p-4">
-                          <NavLinkItems isMobile={true} closeSheet={() => setIsMobileSheetOpen(false)} />
-                      </nav>
-                      <Separator />
-                       <div className="p-4">
-                         {user ? (
-                            <div className="flex flex-col gap-4">
-                                <div className="flex items-center gap-3">
-                                    <Avatar className="h-10 w-10">
-                                        <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "User"} />
-                                        <AvatarFallback>{user.email?.[0].toUpperCase() ?? 'U'}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex flex-col">
-                                        <p className="text-sm font-medium leading-none">{user.displayName ?? 'Welcome'}</p>
-                                        <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-                                    </div>
+                  <nav className="flex flex-col gap-2 p-4">
+                      <NavLinkItems isMobile={true} closeSheet={() => setIsMobileSheetOpen(false)} />
+                  </nav>
+                  <Separator />
+                   <div className="p-4">
+                     {user ? (
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                    <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "User"} />
+                                    <AvatarFallback>{user.email?.[0].toUpperCase() ?? 'U'}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex flex-col">
+                                    <p className="text-sm font-medium leading-none">{user.displayName ?? 'Welcome'}</p>
+                                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
                                 </div>
+                            </div>
+                             {isAdmin ? (
+                                <div className="flex items-center gap-2 text-lg font-semibold text-amber-400 p-4 rounded-lg bg-muted">
+                                    <Shield className="h-5 w-5" />
+                                    <span>Admin Account</span>
+                                </div>
+                            ) : (
                                 <div className="flex items-center gap-2 text-lg font-semibold text-primary p-4 rounded-lg bg-muted">
-                                    <Icons.pen className="h-5 w-5" />
-                                    <span>{profile?.points ?? 0} Ink Points</span>
+                                    <Icons.gem className="h-5 w-5" />
+                                    <span>{profile?.points ?? 0} Insight Points</span>
                                 </div>
-                                 <SheetClose asChild>
-                                    <Button variant="secondary" asChild className="w-full justify-start text-base p-4">
-                                        <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}><Icons.cog className="mr-2 h-5 w-5" />Settings</Link>
-                                    </Button>
-                                </SheetClose>
-                                 <SheetClose asChild>
-                                    <Button onClick={handleSignOut} variant="outline" className="w-full justify-start text-base p-4"><Icons.logout className="mr-2 h-5 w-5" />Log out</Button>
-                                </SheetClose>
-                            </div>
-                         ) : (
-                            <div className="grid gap-2">
-                                <SheetClose asChild>
-                                    <Button variant="outline" asChild><Link href="/login">Login</Link></Button>
-                                </SheetClose>
-                                 <SheetClose asChild>
-                                    <Button asChild><Link href="/signup">Sign Up</Link></Button>
-                                </SheetClose>
-                            </div>
-                         )}
+                            )}
+                             <SheetClose asChild>
+                                <Button onClick={handleSignOut} variant="outline" className="w-full">Log out</Button>
+                            </SheetClose>
                         </div>
-                  </ScrollArea>
+                     ) : (
+                        <div className="grid gap-2">
+                            <SheetClose asChild>
+                                <Button variant="outline" asChild><Link href="/login">Login</Link></Button>
+                            </SheetClose>
+                             <SheetClose asChild>
+                                <Button asChild><Link href="/signup">Sign Up</Link></Button>
+                            </SheetClose>
+                        </div>
+                     )}
+                    </div>
                     <div className="mt-auto flex flex-col items-center gap-4 p-6 border-t">
+                        <SheetClose asChild>
+                            <Button variant="secondary" asChild className="w-full">
+                                <Link href="/settings" onClick={() => pathname !== '/settings' && startLoader()}>Settings</Link>
+                            </Button>
+                        </SheetClose>
                       <BackgroundSwitcher />
                       <div className="text-center text-xs text-muted-foreground">
                           &copy; {new Date().getFullYear()} Tech Ink Insights

@@ -13,19 +13,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Trophy, AlertTriangle, PenLine, Award, Rocket, Share2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import type { UserProfile } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { UserBadge, getRank } from "@/components/user-badge";
-
-type UserData = UserProfile & {
-    id: string;
-    displayName: string;
-    email: string;
-    avatar?: string;
-    points: number;
-    handle: string;
-};
+import type { UserData } from './page';
+import { startLoader } from "@/lib/loader-events";
 
 interface LeaderboardClientPageProps {
     initialUsers: UserData[];
@@ -49,7 +41,7 @@ const ShareCard = () => {
         const shareData = {
             title: 'Join the Race to 1 Million Ink!',
             text: 'The first two members to achieve 1M Ink Points on Tech Ink Insights will be rewarded with 5% equity. Join the community!',
-            url: 'https://tech-ink.web.app/leaderboard'
+            url: 'https://tech-ink.vercel.app/leaderboard'
         };
         try {
             if (navigator.share) {
@@ -151,17 +143,16 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
                     {getMedal(index + 1)}
                 </TableCell>
                 <TableCell>
-                    <Link href={`/u/${user.handle.substring(1)}`} className="flex items-center gap-3 group">
+                    <Link href={`/u/${user.handle.substring(1)}`} onClick={startLoader} className="flex items-center gap-3 group">
                         <Avatar>
-                            <AvatarImage src={user.avatar} alt={user.displayName} />
-                            <AvatarFallback>{user.displayName.charAt(0)}</AvatarFallback>
+                            <AvatarImage src={user.avatar} alt={user.handle} />
+                            <AvatarFallback>{user.handle.charAt(1)}</AvatarFallback>
                         </Avatar>
                         <div>
                              <div className="flex items-center gap-1.5">
-                                <p className="font-medium group-hover:text-primary group-hover:underline">{user.displayName}</p>
+                                <p className="font-medium group-hover:text-primary group-hover:underline">{user.handle}</p>
                                 <UserBadge points={user.points} />
                             </div>
-                            <p className="text-sm text-muted-foreground">{user.handle}</p>
                              <p className={`text-xs font-bold ${userRank.color}`}>{userRank.name}</p>
                         </div>
                     </Link>

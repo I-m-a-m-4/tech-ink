@@ -8,7 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 import { ArticleSchema, type Article } from '@/ai/schemas/article-schema';
 
 // This export is necessary for the homepage to use the Article type.

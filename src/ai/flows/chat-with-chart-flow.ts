@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for answering questions about a specific dataset.
@@ -8,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const ChatWithChartInputSchema = z.object({
   chartData: z.string().describe('The JSON string representation of the chart data being discussed.'),

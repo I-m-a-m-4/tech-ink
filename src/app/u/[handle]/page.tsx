@@ -6,8 +6,9 @@ import { SiteFooter } from '@/components/site-footer';
 import { Loader2 } from 'lucide-react';
 import { Suspense } from 'react';
 import type { UserProfile } from '@/contexts/auth-context';
-import type { SocialFeedItem } from '@/ai/schemas/social-feed-item-schema';
+import type { SocialFeedItem, Poll } from '@/ai/schemas/social-feed-item-schema';
 import UserProfileClientPage from './client-page';
+import type { Metadata } from 'next';
 
 export type UserBadge = 'blue' | 'grey' | 'orange' | null;
 
@@ -17,8 +18,13 @@ export type UserData = UserProfile & {
     handle: string;
     avatar?: string;
     badge: UserBadge;
+    publicName: boolean;
 };
-export type PostWithId = Omit<SocialFeedItem, 'createdAt'> & { id: string; createdAt?: string };
+export type PostWithId = Omit<SocialFeedItem, 'createdAt' | 'poll'> & { 
+    id: string; 
+    createdAt?: string;
+    poll?: Poll;
+};
 
 export type PageData = {
     userData: UserData | null;
@@ -33,7 +39,6 @@ async function getUserProfileData(handle: string): Promise<PageData> {
     }
 
     try {
-        // 1. Fetch user by handle
         const usersRef = collection(db, 'users');
         const userQuery = query(usersRef, where('handle', '==', `@${handle}`), limit(1));
         const userSnapshot = await getDocs(userQuery);
@@ -43,16 +48,17 @@ async function getUserProfileData(handle: string): Promise<PageData> {
         }
         
         const userDoc = userSnapshot.docs[0];
+        const docData = userDoc.data();
         const userData = {
             id: userDoc.id,
-            displayName: userDoc.data().displayName || 'Anonymous User',
-            handle: userDoc.data().handle,
-            points: userDoc.data().points || 0,
+            displayName: docData.displayName || 'Anonymous User',
+            handle: docData.handle,
+            points: docData.points || 0,
             avatar: `https://source.unsplash.com/random/100x100?portrait,user&sig=${userDoc.id}`,
-            badge: userDoc.data().badge || null,
+            badge: docData.badge || null,
+            publicName: docData.publicName !== false,
         } as UserData;
         
-        // 2. Fetch user's posts
         try {
             const postsRef = collection(db, 'feedItems');
             const postsQuery = query(postsRef, where('userId', '==', userData.id), orderBy('createdAt', 'desc'));
@@ -63,7 +69,6 @@ async function getUserProfileData(handle: string): Promise<PageData> {
                 return {
                     id: doc.id,
                     ...data,
-                    // Make sure timestamp is serialized
                     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : undefined
                 } as PostWithId;
             });
@@ -75,12 +80,25 @@ async function getUserProfileData(handle: string): Promise<PageData> {
                 const link = e.message.match(/https?:\/\/[^\s]+/)?.[0] || '';
                 return { userData, posts: [], error: "Query requires a database index.", indexErrorLink: link };
             }
-            throw e; // re-throw other post-fetching errors
+            throw e;
         }
     } catch (e: any) {
         console.error("Error fetching user profile data:", e);
         return { userData: null, posts: [], error: e.message || "An error occurred fetching the profile.", indexErrorLink: null };
     }
+}
+
+export async function generateMetadata({ params }: { params: { handle: string } }): Promise<Metadata> {
+    const data = await getUserProfileData(params.handle);
+    if (!data.userData) {
+        return { title: 'Profile Not Found' };
+    }
+    const { userData } = data;
+    const displayName = userData.publicName ? userData.displayName : userData.handle;
+    return {
+        title: `${displayName}'s Profile`,
+        description: `View the profile and contributions of ${displayName} on Tech Ink Insights.`,
+    };
 }
 
 

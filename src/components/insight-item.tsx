@@ -64,10 +64,6 @@ export function InsightItem({ insight }: InsightItemProps) {
     setConversation(prev => [...prev, { role: 'user', text: values.question }]);
     
     addPoints(10);
-    toast({
-        title: "+10 Insight Points!",
-        description: "You've earned points for your curiosity.",
-    });
 
     try {
       const result = await chatWithChart({
@@ -204,23 +200,21 @@ export function InsightItem({ insight }: InsightItemProps) {
   return (
     <Card className="bg-card/40 shadow-lg border-border/60 animate-in fade-in-50">
       <CardHeader>
-        <div className="flex justify-between items-start">
-            <div className="flex-1 mr-4">
-                {insight.type === 'quote' ? (
-                  <div className="flex items-center gap-2">
-                    <QuoteIcon className="h-6 w-6 text-primary flex-shrink-0" />
-                    <CardTitle>{insight.title}</CardTitle>
-                  </div>
-                ) : (
-                  <CardTitle>{insight.title}</CardTitle>
-                )}
-                <CardDescription className="mt-1">{insight.description}</CardDescription>
-            </div>
+        <div className="flex justify-between items-center">
+            {insight.type === 'quote' ? (
+                <div className="flex items-center gap-2">
+                <QuoteIcon className="h-6 w-6 text-primary flex-shrink-0" />
+                <CardTitle>{insight.title}</CardTitle>
+                </div>
+            ) : (
+                <CardTitle>{insight.title}</CardTitle>
+            )}
              <Button variant="ghost" size="icon" onClick={handleShare}>
                 <Share2 className="h-5 w-5" />
                 <span className="sr-only">Share Insight</span>
             </Button>
         </div>
+        <CardDescription className="pt-1">{insight.description}</CardDescription>
       </CardHeader>
       <CardContent>
         {renderContent()}

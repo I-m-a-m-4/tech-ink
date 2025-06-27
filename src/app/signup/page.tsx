@@ -11,13 +11,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createUserWithEmailAndPassword, signInWithPopup, updateProfile } from "firebase/auth";
 import { auth, googleProvider, initializationError } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Icons } from "@/components/icons";
+import { useAuth } from "@/contexts/auth-context";
 
 const formSchema = z.object({
     firstName: z.string().min(1, { message: "First name is required." }),
@@ -28,10 +29,17 @@ const formSchema = z.object({
 
 
 export default function SignupPage() {
+    const { user, loading: authLoading } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const { toast } = useToast();
     const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && user) {
+        router.push("/");
+        }
+    }, [user, authLoading, router]);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -66,11 +74,6 @@ export default function SignupPage() {
             await updateProfile(userCredential.user, {
                 displayName: `${values.firstName} ${values.lastName}`.trim()
             });
-
-            toast({
-                title: "Account Created",
-                description: "Welcome! You have successfully signed up.",
-            });
             router.push("/");
         } catch (error: any) {
             console.error("Signup error:", error);
@@ -96,10 +99,6 @@ export default function SignupPage() {
         setIsGoogleLoading(true);
         try {
             await signInWithPopup(auth, googleProvider);
-            toast({
-                title: "Account Created",
-                description: "Welcome! You have successfully signed up.",
-            });
             router.push("/");
         } catch (error: any) {
             console.error("Google sign in error:", error);
@@ -111,6 +110,14 @@ export default function SignupPage() {
         } finally {
             setIsGoogleLoading(false);
         }
+    }
+
+    if (authLoading || user) {
+        return (
+          <div className="flex items-center justify-center h-screen">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+        );
     }
     
 

@@ -7,7 +7,7 @@
  * - Insight - The type for a single insight.
  */
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const InsightSchema = z.object({
     type: z.enum(['bar', 'line', 'area', 'quote']).describe("The type of insight: 'bar' chart, 'line' chart, 'area' chart, or 'quote'."),

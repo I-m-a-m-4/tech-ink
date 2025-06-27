@@ -93,10 +93,10 @@ export default function UserProfileClientPage({ handle, initialData }: UserProfi
                 </Avatar>
                 <div className="text-center md:text-left">
                     <div className="flex items-center gap-2 justify-center md:justify-start">
-                        <h1 className="text-3xl font-bold">{userData.displayName}</h1>
+                         <h1 className="text-3xl font-bold">{userData.publicName ? userData.displayName : userData.handle}</h1>
                         <VerificationBadge badge={userData.badge} />
                     </div>
-                    <p className="text-lg text-muted-foreground">{userData.handle}</p>
+                     {userData.publicName && <p className="text-lg text-muted-foreground">{userData.handle}</p>}
                     <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-4">
                         <div className="flex items-center gap-2">
                             <PenLine className="h-5 w-5 text-primary" />

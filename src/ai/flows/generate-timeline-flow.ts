@@ -7,7 +7,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 import { TimelineEventSchema } from '@/ai/schemas/timeline-schema';
 
 const GenerateTimelineInputSchema = z.object({
