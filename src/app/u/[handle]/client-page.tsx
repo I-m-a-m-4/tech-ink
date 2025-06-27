@@ -3,16 +3,17 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PenLine, Share2, AlertTriangle, ExternalLink, BadgeCheck, Shield, Flame, Link as LinkIcon } from 'lucide-react';
+import { PenLine, Share2, AlertTriangle, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
-import type { PageData, PostWithId, UserBadge } from './page';
+import type { PageData, PostWithId } from './page';
 import Image from 'next/image';
 import { useState } from 'react';
 import { UserBadge as RankBadge, getRank } from '@/components/user-badge';
 import { formatDistanceToNow } from 'date-fns';
+import { VerificationBadge } from '@/components/verification-badge';
 
 interface UserProfileClientPageProps {
     handle: string;
@@ -62,24 +63,6 @@ function ShareProfileButton({ handle }: { handle: string }) {
             <Share2 className="mr-2 h-4 w-4" /> Share
         </Button>
     );
-}
-
-const VerificationBadge = ({ badge }: { badge: UserBadge }) => {
-    if (!badge) return null;
-    
-    const badgeStyles: { [key in UserBadge]: string } = {
-        blue: 'text-blue-500 fill-blue-500',
-        grey: 'text-gray-500 fill-gray-500',
-        orange: 'text-orange-500 fill-orange-500',
-    };
-
-    const badgeInfo: { [key in UserBadge]: string } = {
-        blue: 'Verified Blue',
-        grey: 'Verified Grey',
-        orange: 'Verified Orange',
-    }
-
-    return <BadgeCheck className={`h-5 w-5 ${badgeStyles[badge]}`} title={badgeInfo[badge]} />;
 }
 
 export default function UserProfileClientPage({ handle, initialData }: UserProfileClientPageProps) {

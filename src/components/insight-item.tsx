@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "./ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import Link from "next/link";
+import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 
 const chatFormSchema = z.object({
   question: z.string().min(5, { message: "Question must be at least 5 characters." }),
@@ -191,9 +192,12 @@ export function InsightItem({ insight }: InsightItemProps) {
     }
 
     return (
-      <ChartContainer config={chartConfig} className="h-[300px] w-full">
-        {renderChart()}
-      </ChartContainer>
+      <ScrollArea className="w-full whitespace-nowrap md:whitespace-normal">
+        <ChartContainer config={chartConfig} className="h-[300px] w-full min-w-[500px] md:min-w-0">
+          {renderChart()}
+        </ChartContainer>
+        <ScrollBar orientation="horizontal" className="md:hidden" />
+      </ScrollArea>
     );
   };
 
