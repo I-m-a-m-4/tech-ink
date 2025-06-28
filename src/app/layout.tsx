@@ -9,6 +9,7 @@ import { SiteBackgroundWrapper } from '@/components/site-background-wrapper';
 import { Suspense } from 'react';
 import { getSiteSettings } from '@/lib/settings';
 import { PageViewTracker } from '@/components/page-view-tracker';
+import { Analytics } from "@vercel/analytics/next"
 
 const siteConfig = {
   name: "Tech Ink Insights",
