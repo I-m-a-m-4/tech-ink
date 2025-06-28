@@ -39,10 +39,10 @@ export default function WelcomePage() {
               <CardContent className="p-6 md:p-8 space-y-8">
                 
                 <p className="text-center text-muted-foreground">
-                  Hey everyone! Bime here. What started as our vibrant WhatsApp group is now evolving into something much more powerful: an **insight engine**. I've built this platform as our new home—a dedicated space to expand on the amazing conversations we're already having.
+                  Hey everyone! Bime here. What started as our vibrant WhatsApp group is now evolving into something much more powerful: an **insight engine**. I've built this platform as our new home—a dedicated space to expand on the amazing conversations we would be having.
                 </p>
 
-                <Section icon={<Rocket className="h-6 w-6" />} title="What is an 'Insight Engine'?">
+                <Section icon={<Rocket className="h-6 w-6" />} title="What is 'Tech Ink'?">
                     <p>
                         This is our own private, micro-blogging platform, but with a twist. It's a place where we can not only share news but also analyze it with AI, explore data, and connect the dots. It’s a tool for turning information into deep understanding.
                     </p>

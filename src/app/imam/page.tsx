@@ -986,39 +986,46 @@ const FeedManager = () => {
         if (!db) return;
         setIsSubmitting(true);
         try {
-            const payload: Partial<SocialFeedItem> = { 
-                ...data,
-                author: "Bime",
-                handle: "@bime",
-                time: "Just now",
-                avatar: "https://source.unsplash.com/random/100x100?portrait,man" // Static avatar for admin
-            };
-            
-            if (!payload.imageUrl) {
-                delete payload.imageUrl;
-            }
+            // Create a mutable payload
+            const payload: { [key: string]: any } = { ...data };
+
+            // Sanitize payload: Firestore doesn't accept `undefined`
+            Object.keys(payload).forEach(key => {
+                if (payload[key] === undefined) {
+                    delete payload[key];
+                }
+            });
 
             if (editingItem) {
+                // For updates, just send the sanitized form data
                 await updateDoc(doc(db, editingItem.collectionName, editingItem.item.id), payload);
-                toast({ title: "Success", description: "Feed item updated." });
+                toast({ title: "Success", description: "Item updated." });
             } else {
-                await addDoc(collection(db, 'feedItems'), { 
-                    ...payload, 
+                // For new posts, add admin-specific data
+                const newPostPayload = {
+                    ...payload,
+                    author: "Bime",
+                    handle: "@bime",
+                    time: "Just now",
+                    avatar: "https://source.unsplash.com/random/100x100?portrait,man",
                     likes: 0, 
                     comments: 0, 
-                    createdAt: serverTimestamp() 
-                });
+                    createdAt: serverTimestamp()
+                };
+                await addDoc(collection(db, 'feedItems'), newPostPayload);
                 toast({ title: "Success", description: "Feed item added." });
             }
+            
             await fetchAllData();
             closeDialog();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error saving feed item: ", error);
-            toast({ variant: "destructive", title: "Failed to save feed item." });
+            toast({ variant: "destructive", title: "Failed to save feed item.", description: error.message });
         } finally {
             setIsSubmitting(false);
         }
     };
+
 
     const handleEdit = (item: SocialFeedItemWithId, collectionName: 'feedItems' | 'dailyTopics') => {
         setEditingItem({ item, collectionName });
@@ -1712,5 +1719,7 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
 
     
