@@ -20,12 +20,13 @@ import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/s
 import { Separator } from "./ui/separator";
 import { BackgroundSwitcher } from "./background-switcher";
 import { useRouter } from "next/navigation";
-import { Shield } from 'lucide-react';
+import { Shield, Handshake } from 'lucide-react';
 import { ClientLink } from "./client-link";
 import { Skeleton } from "./ui/skeleton";
 import { ScrollArea } from "./ui/scroll-area";
 
 const navLinks = [
+    { href: "/welcome", label: "Welcome", icon: <Handshake className="h-5 w-5" /> },
     { href: "/news", label: "News", icon: <Icons.news className="h-5 w-5" /> },
     { href: "/insights", label: "Insights", icon: <Icons.insights className="h-5 w-5" /> },
     { href: "/feed", label: "Feed", icon: <Icons.feed className="h-5 w-5" /> },
@@ -38,7 +39,7 @@ const NavLinkItems = ({ isMobile = false, closeSheet }: { isMobile?: boolean, cl
     const linkContent = (link: typeof navLinks[0]) => (
          <ClientLink
             href={link.href}
-            onClick={isMobile ? closeSheet : undefined}
+            onClick={closeSheet}
             className={cn(
                 "flex items-center gap-2 transition-colors hover:text-primary",
                 pathname === link.href ? "text-primary font-semibold" : "text-foreground/70",
@@ -233,7 +234,7 @@ export function SiteHeader() {
                             <SheetClose asChild>
                                 <Button variant="outline" asChild><ClientLink href="/login">Login</ClientLink></Button>
                             </SheetClose>
-                            <SheetClose asChild>
+                             <SheetClose asChild>
                                 <Button asChild><ClientLink href="/signup">Sign Up</ClientLink></Button>
                             </SheetClose>
                         </div>

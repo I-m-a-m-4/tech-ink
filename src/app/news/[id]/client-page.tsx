@@ -173,7 +173,13 @@ export default function ArticleClientPage({ article }: { article: ArticleWithId 
             </div>
           )}
           <div className="prose prose-lg dark:prose-invert max-w-full">
-            <ReactMarkdown>{article.content || article.description}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                mark: ({node, ...props}) => <mark {...props} />
+              }}
+            >
+                {article.content || article.description}
+            </ReactMarkdown>
           </div>
           <Separator className="my-12" />
           <ArticleInteraction article={article} />

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, writeBatch, doc, increment, type Timestamp } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, writeBatch, doc, increment } from "firebase/firestore";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -46,7 +46,7 @@ export function PostComments({ post }: { post: PostWithId }) {
     useEffect(() => {
         if (!db) return;
         const commentsRef = collection(db, post.collectionName, post.id, "comments");
-        const q = query(commentsRef, orderBy("createdAt", "desc"));
+        const q = query(commentsRef, orderBy("createdAt", "asc"));
         const unsubscribe = onSnapshot(q, (snapshot) => { 
             setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment))); 
             setIsLoading(false); 

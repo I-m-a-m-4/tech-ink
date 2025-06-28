@@ -14,7 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from 'zod';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon, BadgeCheck, Search, ListFilter } from 'lucide-react';
+import { Loader2, Trash2, Edit, PlusCircle, LogIn, Bot, User as UserIcon, Star, Clock, Settings as SettingsIcon, BadgeCheck, Search, ListFilter, Eye, TrendingUp, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -46,9 +46,129 @@ import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 import type { UserProfile } from '@/contexts/auth-context';
 import { UserBadge, getRank } from '@/components/user-badge';
+import { formatDistanceToNow } from 'date-fns';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const IMGBB_API_KEY = (process.env.NEXT_PUBLIC_IMGBB_API_KEY || "").trim();
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "bimex4@gmail.com").toLowerCase();
+
+// --- Analytics Manager Component (Merged) ---
+type PageView = {
+    id: string;
+    originalPath: string;
+    views: number;
+    lastViewed: {
+        seconds: number;
+        nanoseconds: number;
+    } | null;
+}
+
+const AnalyticsManager = () => {
+    const [pageViews, setPageViews] = useState<PageView[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAnalytics = async () => {
+            if (!db) return;
+            setIsLoading(true);
+            try {
+                const analyticsCollection = collection(db, 'analytics');
+                const q = query(analyticsCollection, orderBy('views', 'desc'));
+                const snapshot = await getDocs(q);
+                const views = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PageView));
+                setPageViews(views);
+            } catch (error) {
+                console.error("Error fetching analytics: ", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchAnalytics();
+    }, []);
+
+    const totalViews = useMemo(() => pageViews.reduce((acc, curr) => acc + curr.views, 0), [pageViews]);
+    const uniquePages = pageViews.length;
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+    }
+
+    return (
+        <div className="space-y-8">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Views</CardTitle>
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{totalViews.toLocaleString()}</div>
+                        <p className="text-xs text-muted-foreground">Across all pages</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Unique Pages Tracked</CardTitle>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{uniquePages}</div>
+                         <p className="text-xs text-muted-foreground">Total number of pages with views</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Most Viewed Page</CardTitle>
+                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold truncate">{pageViews[0]?.originalPath || 'N/A'}</div>
+                        <p className="text-xs text-muted-foreground">
+                            with {pageViews[0]?.views.toLocaleString() || 0} views
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Page View Breakdown</CardTitle>
+                    <CardDescription>A list of all tracked pages and their view counts.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Page Path</TableHead>
+                                <TableHead className="text-right">Views</TableHead>
+                                <TableHead className="text-right">Last Viewed</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {pageViews.map(view => (
+                                <TableRow key={view.id}>
+                                    <TableCell className="font-medium">{view.originalPath}</TableCell>
+                                    <TableCell className="text-right">{view.views.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right">
+                                        {view.lastViewed ? formatDistanceToNow(new Date(view.lastViewed.seconds * 1000), { addSuffix: true }) : 'N/A'}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Next Steps: Button Click Analytics</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">To track clicks on important buttons (like "Summarize Article" or "Analyze Post"), we can create a similar system. It would involve another server action and calling it from the `onClick` handler of those specific buttons. This would give you insight into which features are being used most often.</p>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
+
 
 const ArticleSchema = z.object({
     title: z.string().min(1, "Title is required."),
@@ -76,7 +196,7 @@ type InsightFormValues = z.infer<typeof InsightSchema>;
 
 const FeedItemSchema = z.object({
     headline: z.string().min(1, "Headline is required."),
-    content: z.string().min(1, "Content is required."),
+    content: z.string().min(1, "Content is required.").optional(),
     platform: z.enum(['Twitter', 'YouTube', 'Instagram', 'TechInk']),
     url: z.string().url().optional().or(z.literal('')),
     imageUrl: z.string().url().optional().or(z.literal('')),
@@ -326,7 +446,7 @@ const NewsManager = () => {
                         <FormControl>
                             <Textarea placeholder="Full article content..." className="min-h-[300px] text-sm" {...field} />
                         </FormControl>
-                        <FormDescription>Markdown is supported for formatting (e.g., ### for headings, ** for bold, * for lists).</FormDescription>
+                        <FormDescription>Markdown is supported. To highlight text, wrap it in {'<mark>'} and {'</mark>'} tags.</FormDescription>
                         <FormMessage />
                     </FormItem>
                 )}/>
@@ -438,9 +558,7 @@ const NewsManager = () => {
                                                 This action cannot be undone. This will permanently delete this article.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(article.id)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(article.id)}>Delete</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                             </CardFooter>
@@ -678,9 +796,7 @@ const InsightsManager = () => {
                                                 This action cannot be undone. This will permanently delete this insight.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(insight.id)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className={cn(buttonVariants({ variant: "destructive" }))} onClick={() => handleDelete(insight.id)}>Delete</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
                             </CardFooter>
@@ -694,6 +810,11 @@ const InsightsManager = () => {
     );
 };
 
+type EditingItemState = {
+    item: SocialFeedItemWithId;
+    collectionName: 'feedItems' | 'dailyTopics';
+} | null;
+
 // --- Feed Manager Component ---
 const FeedManager = () => {
     const [feedItems, setFeedItems] = useState<SocialFeedItemWithId[]>([]);
@@ -702,7 +823,7 @@ const FeedManager = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingItem, setEditingItem] = useState<SocialFeedItemWithId | null>(null);
+    const [editingItem, setEditingItem] = useState<EditingItemState>(null);
     const [isGeneratingTopic, setIsGeneratingTopic] = useState(false);
     const { toast } = useToast();
     const form = useForm<FeedItemFormValues>({ resolver: zodResolver(FeedItemSchema), defaultValues: { imageUrl: ''} });
@@ -878,7 +999,7 @@ const FeedManager = () => {
             }
 
             if (editingItem) {
-                await updateDoc(doc(db, 'feedItems', editingItem.id), payload);
+                await updateDoc(doc(db, editingItem.collectionName, editingItem.item.id), payload);
                 toast({ title: "Success", description: "Feed item updated." });
             } else {
                 await addDoc(collection(db, 'feedItems'), { 
@@ -899,9 +1020,9 @@ const FeedManager = () => {
         }
     };
 
-    const handleEdit = (item: SocialFeedItemWithId) => {
-        setEditingItem(item);
-        const { id, createdAt, likes, comments, views, author, handle, avatar, time, userId, ...formData } = item;
+    const handleEdit = (item: SocialFeedItemWithId, collectionName: 'feedItems' | 'dailyTopics') => {
+        setEditingItem({ item, collectionName });
+        const { id, createdAt, likes, comments, views, author, handle, avatar, time, userId, poll, ...formData } = item;
         form.reset(formData);
         setIsDialogOpen(true);
     };
@@ -1019,6 +1140,7 @@ const FeedManager = () => {
                                 <CardDescription>by {item.author}</CardDescription>
                             </CardHeader>
                             <CardFooter className="border-t flex justify-end gap-2 pt-4 mt-auto">
+                                <Button variant="outline" size="icon" onClick={() => handleEdit(item, 'dailyTopics')}><Edit className="h-4 w-4" /></Button>
                                  <AlertDialog>
                                     <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -1087,7 +1209,7 @@ const FeedManager = () => {
                                         <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handlePin(item)}>Pin Post</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                                <Button variant="outline" size="icon" onClick={() => handleEdit(item)}><Edit className="h-4 w-4" /></Button>
+                                <Button variant="outline" size="icon" onClick={() => handleEdit(item, 'feedItems')}><Edit className="h-4 w-4" /></Button>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild><Button variant="destructive" size="icon"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                     <AlertDialogContent>
@@ -1459,6 +1581,7 @@ const AdminDashboard = () => (
                 <TabsTrigger value="insights">Insights</TabsTrigger>
                 <TabsTrigger value="feed">Social Feed</TabsTrigger>
                 <TabsTrigger value="timelines">Timelines</TabsTrigger>
+                <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 <TabsTrigger value="users">Users</TabsTrigger>
                 <TabsTrigger value="settings">Site Settings</TabsTrigger>
             </TabsList>
@@ -1473,6 +1596,9 @@ const AdminDashboard = () => (
             </TabsContent>
             <TabsContent value="timelines" className="py-6">
                 <TimelinesManager />
+            </TabsContent>
+             <TabsContent value="analytics" className="py-6">
+                <AnalyticsManager />
             </TabsContent>
             <TabsContent value="users" className="py-6">
                 <UsersManager />

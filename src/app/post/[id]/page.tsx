@@ -16,6 +16,9 @@ import { Icons } from '@/components/icons';
 import { PostComments } from './comments-client';
 import type { PostWithId } from '@/types/post';
 import { ClientLink } from '@/components/client-link';
+import { PollDisplay } from '@/components/poll-display';
+import { useAuth } from '@/contexts/auth-context';
+
 
 async function getPost(id: string): Promise<PostWithId | null> {
   if (initializationError || !db) return null;
@@ -141,6 +144,17 @@ export default async function PostPage({ params }: { params: { id: string }}) {
                               <div className="prose dark:prose-invert max-w-full mb-6">
                                   <ReactMarkdown>{post.content}</ReactMarkdown>
                               </div>
+                            )}
+
+                             {post.poll && post.createdAt && (
+                                <div className="my-6">
+                                    <PollDisplay 
+                                        postId={post.id}
+                                        poll={post.poll}
+                                        collectionName={post.collectionName}
+                                        createdAt={post.createdAt}
+                                    />
+                                </div>
                             )}
 
                             {post.imageUrl && (

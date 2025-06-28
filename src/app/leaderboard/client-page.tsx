@@ -193,14 +193,14 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
                     <ClientLink href={`/u/${user.handle.substring(1)}`} className="flex items-center gap-3 group">
                         <Avatar>
                             <AvatarImage src={user.avatar} alt={user.handle} />
-                            <AvatarFallback>{user.handle.charAt(1) || user.displayName.charAt(0)}</AvatarFallback>
+                            <AvatarFallback>{user.handle.charAt(1) || 'U'}</AvatarFallback>
                         </Avatar>
                         <div>
                              <div className="flex items-center gap-1.5">
                                 <p className="font-medium group-hover:text-primary group-hover:underline">{user.handle}</p>
                                 <UserBadge points={user.points} />
                             </div>
-                            {user.publicName && user.displayName && <p className="text-sm text-muted-foreground">{user.displayName}</p>}
+                            {user.publicName && user.displayName && <p className="text-xs text-muted-foreground">{user.displayName}</p>}
                              <p className={`text-xs font-bold ${userRank.color}`}>{userRank.name}</p>
                         </div>
                     </ClientLink>
@@ -229,7 +229,7 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                    {renderTableBody()}
+                   {renderTableBody()}
                     </TableBody>
                 </Table>
             </CardContent>

@@ -8,6 +8,7 @@ import { BackgroundProvider } from '@/contexts/background-context';
 import { SiteBackgroundWrapper } from '@/components/site-background-wrapper';
 import { Suspense } from 'react';
 import { getSiteSettings } from '@/lib/settings';
+import { PageViewTracker } from '@/components/page-view-tracker';
 
 const siteConfig = {
   name: "Tech Ink Insights",
@@ -56,10 +57,10 @@ export const metadata: Metadata = {
     creator: '@dev_bime',
   },
   icons: {
-    icon: { url: siteConfig.ogImage, type: "image/jpeg" },
-    shortcut: { url: siteConfig.ogImage, type: "image/jpeg" },
-    apple: { url: siteConfig.ogImage, type: "image/jpeg" },
-  },
+    icon: siteConfig.ogImage,
+    shortcut: siteConfig.ogImage,
+    apple: siteConfig.ogImage,
+  }
 };
 
 
@@ -94,6 +95,7 @@ export default async function RootLayout({
             <SiteBackgroundWrapper>
               <Suspense fallback={null}>
                 <PageLoader />
+                <PageViewTracker />
               </Suspense>
               {children}
               <Toaster />

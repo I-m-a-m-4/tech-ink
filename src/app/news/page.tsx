@@ -2,7 +2,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Loader2, Newspaper } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
@@ -14,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { Article } from "@/ai/flows/generate-articles-flow";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ClientLink } from "@/components/client-link";
 
 type ArticleWithId = Article & { id: string };
 
@@ -127,9 +127,9 @@ export default function NewsPage() {
                                         {cardContent}
                                     </a>
                                 ) : (
-                                    <Link href={`/news/${item.id}`} className={commonCardClasses}>
+                                    <ClientLink href={`/news/${item.id}`} className={commonCardClasses}>
                                       {cardContent}
-                                    </Link>
+                                    </ClientLink>
                                 )}
                                 </div>
                             );

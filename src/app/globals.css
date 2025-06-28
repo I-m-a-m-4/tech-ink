@@ -146,6 +146,9 @@
   .prose-lg h2, .prose-lg h3 {
     @apply mb-4 mt-12;
   }
+  .prose mark, .prose-lg mark {
+    @apply bg-primary/30 text-primary-foreground px-1 py-0.5 rounded-md;
+  }
 }
 
 @layer utilities {

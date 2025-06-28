@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Defines the shared Post type to avoid circular dependencies.
  */

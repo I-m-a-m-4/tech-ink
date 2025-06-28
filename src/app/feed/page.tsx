@@ -232,7 +232,7 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
                         </div>
                     </div>
                     <div className="px-6 pt-0 pb-4">
-                        <h3 className="mt-2 text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                        <h3 className="mt-2 text-base font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
                         {item.content && <ExpandableText text={item.content} />}
                         {item.imageUrl && (
                              <button className="mt-4 relative w-full h-[300px] sm:h-96 overflow-hidden rounded-lg group" onClick={(e) => handleFooterAction(e, () => onViewImage(item.imageUrl!))}>
@@ -387,7 +387,7 @@ const PinnedTopicCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; on
                     </div>
 
                     <div className="px-6 pt-0 pb-4">
-                        <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
+                        <h3 className="text-lg font-semibold group-hover:text-primary transition-colors">{item.headline}</h3>
                         <ExpandableText text={item.content} />
                         {item.imageUrl && (
                             <button className="mt-4 relative w-full h-96 sm:h-[500px] overflow-hidden rounded-lg group" onClick={(e) => handleFooterAction(e, () => onViewImage(item.imageUrl!))}>
