@@ -200,7 +200,6 @@ export default function LeaderboardClientPage({ initialUsers, error }: Leaderboa
                                 <p className="font-medium group-hover:text-primary group-hover:underline">{user.handle}</p>
                                 <UserBadge points={user.points} />
                             </div>
-                            {user.publicName && user.displayName && <p className="text-xs text-muted-foreground">{user.displayName}</p>}
                              <p className={`text-xs font-bold ${userRank.color}`}>{userRank.name}</p>
                         </div>
                     </ClientLink>
