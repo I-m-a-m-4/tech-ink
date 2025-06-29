@@ -6,16 +6,15 @@ import Image from "next/image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { type SocialFeedItem, type Poll } from "@/ai/schemas/social-feed-item-schema";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText, Search, ImageUp, BarChart3, Trash2, CheckCircle2 } from "lucide-react";
+import { Loader2, RefreshCw, Star, Plus, Bot, Eye, FileText, Search, ImageUp, BarChart3, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SocialCube3d } from "@/components/social-cube-3d";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { useAuth } from "@/contexts/auth-context";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy, addDoc, serverTimestamp, type Timestamp, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, addDoc, serverTimestamp, type Timestamp, doc, type DocumentData, type QueryDocumentSnapshot, limit, startAfter } from "firebase/firestore";
 import { Newspaper } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm, SubmitHandler, useFieldArray } from "react-hook-form";
@@ -31,47 +30,51 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
-import { Progress } from "@/components/ui/progress";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClientLink } from "@/components/client-link";
-import { motion } from 'framer-motion';
-
+import { PollDisplay } from "@/components/poll-display";
+import type { PostWithId } from "@/types/post";
 
 const BATCH_SIZE = 5;
 const POST_CHARACTER_LIMIT = 600;
 const TRUNCATE_LENGTH = 350;
 
-type SocialFeedItemWithId = SocialFeedItem & { 
-    id: string;
-    createdAt?: Timestamp;
-    userId?: string;
-    views?: number;
-    comments: number;
-    poll?: Poll;
-};
+type SocialFeedItemWithId = PostWithId;
 
 const addPostFormSchema = z.object({
   headline: z.string().min(10, { message: "Headline or Poll Question must be at least 10 characters." }).max(100, { message: "Headline/Question must be less than 100 characters." }),
   content: z.string().max(POST_CHARACTER_LIMIT, { message: `Content must be less than ${POST_CHARACTER_LIMIT} characters.` }).optional(),
   imageUrl: z.string().url({ message: "Please enter a valid image URL." }).optional().or(z.literal('')),
+  isPoll: z.boolean().default(false),
   poll: z.object({
-    options: z.array(z.object({ text: z.string().min(1, "Option cannot be empty").max(80, "Option is too long") })).min(2, "A poll must have at least 2 options.").max(4, "A poll can have at most 4 options."),
+    options: z.array(z.object({ text: z.string().max(80, "Option is too long") })).optional(),
   }).optional(),
 }).superRefine((data, ctx) => {
-    if (!data.poll && (!data.content || data.content.length < 20)) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["content"],
-            message: "Content must be at least 20 characters for a regular post.",
-        });
+    if (data.isPoll) {
+        const validOptions = data.poll?.options?.filter(o => o.text.trim()).length || 0;
+        if (validOptions < 2) {
+             ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['poll.options'],
+                message: 'A poll requires at least 2 non-empty options.'
+            });
+        }
+    } else {
+        if (!data.content || data.content.trim().length < 20) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['content'],
+                message: 'Content must be at least 20 characters for a regular post.'
+            });
+        }
     }
 });
+
 type AddPostFormValues = z.infer<typeof addPostFormSchema>;
 
 const getDisplayTime = (item: SocialFeedItemWithId) => {
-    if (item.createdAt && typeof item.createdAt.toDate === 'function') {
-        return formatDistanceToNow(item.createdAt.toDate(), { addSuffix: true });
+    if (item.createdAt) {
+        return formatDistanceToNow(new Date(item.createdAt), { addSuffix: true });
     }
     return 'Just now';
 };
@@ -107,7 +110,7 @@ const ExpandableText = ({ text }: { text: string }) => {
 
 const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onViewImage: (src: string) => void }) => {
     const { toast } = useToast();
-    const { user, addPoints, likedPosts, addLike, removeLike, votedOnPolls, voteOnPoll } = useAuth();
+    const { user, addPoints, likedPosts, addLike, removeLike } = useAuth();
     const [likeCount, setLikeCount] = useState(item.likes);
 
     const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
@@ -116,34 +119,6 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
     
     const displayTime = getDisplayTime(item);
     const isLiked = likedPosts.has(item.id);
-    const hasVotedOnThisPoll = votedOnPolls.has(item.id);
-    const [pollState, setPollState] = useState(item.poll);
-
-    useEffect(() => {
-        setPollState(item.poll);
-    }, [item.poll]);
-    
-    const handleVote = async (optionText: string) => {
-        if (!user) { toast({ variant: "destructive", title: "Login Required" }); return; }
-        if (!pollState) return;
-
-        try {
-            await voteOnPoll(item.id, 'feedItems', optionText);
-            setPollState(currentPoll => {
-                if (!currentPoll) return undefined;
-                return {
-                    ...currentPoll,
-                    options: {
-                        ...currentPoll.options,
-                        [optionText]: (currentPoll.options[optionText] || 0) + 1,
-                    },
-                };
-            });
-        } catch (error: any) {
-            console.error("Vote error:", error);
-            toast({ variant: "destructive", title: "Vote Failed", description: error.message || "An error occurred." });
-        }
-    };
     
     const handleFooterAction = (e: React.MouseEvent, action: (() => void) | (() => Promise<void>)) => {
         e.stopPropagation();
@@ -160,10 +135,10 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
         try {
             if (isLiked) {
                 setLikeCount(c => c - 1);
-                await removeLike(item.id, 'feedItems');
+                await removeLike(item.id, item.collectionName);
             } else {
                 setLikeCount(c => c + 1);
-                await addLike(item.id, 'feedItems');
+                await addLike(item.id, item.collectionName);
                 addPoints(1);
             }
         } catch (error) {
@@ -239,10 +214,10 @@ const FeedItemCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; onVie
                                 <Image src={item.imageUrl} alt={item.headline} fill sizes="100vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
                             </button>
                         )}
-                        {pollState && (
-                            <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
-                                <PollDisplay poll={pollState} userVote={votedOnPolls.get(item.id)} onVote={handleVote} hasVoted={hasVotedOnThisPoll} />
-                            </div>
+                        {item.poll && item.createdAt && (
+                             <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+                                <PollDisplay postId={item.id} poll={item.poll} collectionName={item.collectionName} createdAt={item.createdAt} />
+                             </div>
                         )}
                     </div>
                     <CardFooter className="p-6 pt-0 border-t mt-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
@@ -433,12 +408,13 @@ const PinnedTopicCard = ({ item, onViewImage }: { item: SocialFeedItemWithId; on
 }
 
 function FeedPageComponent() {
-  const [allFeedItems, setAllFeedItems] = useState<SocialFeedItemWithId[]>([]);
   const [visibleFeedItems, setVisibleFeedItems] = useState<SocialFeedItemWithId[]>([]);
   const [pinnedTopic, setPinnedTopic] = useState<SocialFeedItemWithId | null>(null);
   const [topicHistory, setTopicHistory] = useState<SocialFeedItemWithId[]>([]);
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isAddPostOpen, setIsAddPostOpen] = useState(false);
   const [imageToView, setImageToView] = useState<string | null>(null);
@@ -447,46 +423,43 @@ function FeedPageComponent() {
   const { user, profile, addPoints } = useAuth();
   
   const [showPoll, setShowPoll] = useState(false);
-  const addPostForm = useForm<AddPostFormValues>({ resolver: zodResolver(addPostFormSchema), defaultValues: { headline: "", content: "", imageUrl: "", poll: { options: [{text: ""}, {text: ""}] } } });
+  const addPostForm = useForm<AddPostFormValues>({ 
+    resolver: zodResolver(addPostFormSchema), 
+    defaultValues: { headline: "", content: "", imageUrl: "", isPoll: false, poll: { options: [{text: ""}, {text: ""}] } } 
+  });
   const [isUploading, setIsUploading] = useState(false);
   
   const { fields, append, remove } = useFieldArray({
     control: addPostForm.control,
     name: "poll.options",
   });
-
-  const fetchFeed = useCallback(async (isRefresh = false) => {
+  
+  const fetchInitialFeed = useCallback(async (isRefresh = false) => {
     if (!db) {
         setIsLoading(false);
         return;
     }
     setIsLoading(true);
-    if (isRefresh) { setAllFeedItems([]); setVisibleFeedItems([]); setPinnedTopic(null); setTopicHistory([]); }
+    if (isRefresh) { setVisibleFeedItems([]); setPinnedTopic(null); setTopicHistory([]); setLastVisible(null); }
     try {
         const dailyTopicsQuery = query(collection(db, 'dailyTopics'), orderBy('createdAt', 'desc'));
-        const feedItemsQuery = query(collection(db, 'feedItems'), orderBy('createdAt', 'desc'));
+        const feedItemsQuery = query(collection(db, 'feedItems'), orderBy('createdAt', 'desc'), limit(BATCH_SIZE));
+        
         const [dailyTopicsSnapshot, feedItemsSnapshot] = await Promise.all([getDocs(dailyTopicsQuery), getDocs(feedItemsQuery)]);
         
-        const dailyTopicsList = dailyTopicsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), comments: doc.data().comments || 0 } as SocialFeedItemWithId));
-        let currentPinnedTopic: SocialFeedItemWithId | null = null;
+        const dailyTopicsList = dailyTopicsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), collectionName: 'dailyTopics', createdAt: (doc.data().createdAt as Timestamp)?.toDate().toISOString() } as SocialFeedItemWithId));
         if (dailyTopicsList.length > 0) {
-            currentPinnedTopic = dailyTopicsList[0];
-            setPinnedTopic(currentPinnedTopic);
+            setPinnedTopic(dailyTopicsList[0]);
             setTopicHistory(dailyTopicsList.slice(1));
         } else {
             setPinnedTopic(null);
             setTopicHistory([]);
         }
 
-        let feedItemsList = feedItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SocialFeedItemWithId));
-        
-        if (currentPinnedTopic) {
-            feedItemsList = feedItemsList.filter(item => item.id !== currentPinnedTopic!.id);
-        }
-
-        setAllFeedItems(feedItemsList);
-        setVisibleFeedItems(feedItemsList.slice(0, BATCH_SIZE));
-        setHasMore(feedItemsList.length > BATCH_SIZE);
+        const feedItemsList = feedItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), collectionName: 'feedItems', createdAt: (doc.data().createdAt as Timestamp)?.toDate().toISOString() } as SocialFeedItemWithId));
+        setVisibleFeedItems(feedItemsList);
+        setLastVisible(feedItemsSnapshot.docs[feedItemsSnapshot.docs.length - 1] || null);
+        setHasMore(feedItemsList.length === BATCH_SIZE);
 
     } catch (error) {
         console.error("Failed to fetch feed items:", error);
@@ -495,59 +468,100 @@ function FeedPageComponent() {
     }
   }, []);
 
-  useEffect(() => { fetchFeed(); }, [fetchFeed]);
+  useEffect(() => { fetchInitialFeed(); }, [fetchInitialFeed]);
+  
+  const loadMoreFeedItems = useCallback(async () => {
+    if (isLoadingMore || !hasMore || !lastVisible || !db) return;
+    setIsLoadingMore(true);
+
+    try {
+        const nextQuery = query(
+            collection(db, 'feedItems'),
+            orderBy('createdAt', 'desc'),
+            startAfter(lastVisible),
+            limit(BATCH_SIZE)
+        );
+        const documentSnapshots = await getDocs(nextQuery);
+        const newItems = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data(), collectionName: 'feedItems', createdAt: (doc.data().createdAt as Timestamp)?.toDate().toISOString() } as SocialFeedItemWithId));
+
+        setVisibleFeedItems(prev => [...prev, ...newItems]);
+        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1] || null);
+        setHasMore(documentSnapshots.docs.length === BATCH_SIZE);
+
+    } catch (error) {
+        console.error("Error loading more items:", error);
+        toast({ variant: "destructive", title: "Could not load more posts." });
+    } finally {
+        setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, hasMore, lastVisible, toast]);
+
+  const lastItemElementRef = useCallback((node: HTMLDivElement) => {
+    if (isLoadingMore || isLoading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => { if (entries[0].isIntersecting && hasMore) { loadMoreFeedItems(); } });
+    if (node) observer.current.observe(node);
+  }, [isLoadingMore, isLoading, hasMore, loadMoreFeedItems]);
 
   const handleTogglePoll = () => {
-    setShowPoll(prev => {
-        const isNowShowingPoll = !prev;
-        if (isNowShowingPoll) {
-            addPostForm.setValue('content', '');
-            addPostForm.clearErrors('content');
-        } else {
-            addPostForm.setValue('poll', undefined);
-        }
-        return isNowShowingPoll;
-    });
+      const isNowPoll = !showPoll;
+      setShowPoll(isNowPoll);
+      addPostForm.setValue('isPoll', isNowPoll, { shouldValidate: true });
+
+      if (isNowPoll) {
+          addPostForm.setValue('content', '');
+          addPostForm.clearErrors('content');
+      } else {
+          addPostForm.setValue('poll', { options: [{ text: "" }, { text: "" }] });
+          addPostForm.clearErrors('poll');
+      }
+      addPostForm.trigger();
   };
 
   const onAddPostSubmit: SubmitHandler<AddPostFormValues> = async (values) => {
-    if (!user || !profile || !db) { toast({ variant: "destructive", title: "You must be logged in to post." }); return; }
+    if (!user || !profile || !db) {
+        toast({ variant: "destructive", title: "You must be logged in to post." });
+        return;
+    }
     try {
-        const postData: Partial<SocialFeedItem> = {
+        const postData: any = {
             author: user.displayName || "Anonymous",
             handle: profile.handle,
             avatar: user.photoURL || `https://source.unsplash.com/random/100x100?portrait,user`,
-            time: "Just now", platform: "TechInk", headline: values.headline, content: values.content || "",
-            url: "#", 
-            likes: 0, comments: 0, views: 0,
+            time: "Just now",
+            platform: "TechInk",
+            headline: values.headline,
+            url: "#",
+            likes: 0,
+            comments: 0,
+            views: 0,
             userId: user.uid,
+            createdAt: serverTimestamp(),
         };
 
         if (values.imageUrl) {
             postData.imageUrl = values.imageUrl;
         }
 
-        if(showPoll && values.poll && values.poll.options.length >= 2) {
-            postData.content = "";
+        if (values.isPoll && values.poll?.options) {
+            postData.content = ""; // Ensure content is empty for polls
             const pollOptionsMap: { [key: string]: number } = {};
-            for (const option of values.poll.options) {
-                if (option.text) {
-                    pollOptionsMap[option.text] = 0;
-                }
-            }
+            values.poll.options.forEach(o => {
+                if (o.text) pollOptionsMap[o.text.trim()] = 0;
+            });
             postData.poll = { options: pollOptionsMap, voters: {} };
         } else {
-             postData.poll = undefined;
+            postData.content = values.content;
         }
 
-        await addDoc(collection(db, "feedItems"), { ...postData, createdAt: serverTimestamp() });
+        await addDoc(collection(db, "feedItems"), postData);
 
         toast({ title: "Post created!", description: "Your post is now live on the feed." });
         addPoints(25);
         setIsAddPostOpen(false);
         addPostForm.reset();
         setShowPoll(false);
-        fetchFeed(true);
+        fetchInitialFeed(true);
     } catch (error) {
         console.error("Error adding document: ", error);
         toast({ variant: "destructive", title: "Failed to create post", description: "Please try again." });
@@ -590,23 +604,6 @@ function FeedPageComponent() {
     }
 };
 
-  const loadMoreFeedItems = useCallback(() => {
-    if (isLoading) return;
-    const currentLength = visibleFeedItems.length;
-    const nextItems = allFeedItems.slice(currentLength, currentLength + BATCH_SIZE);
-    setVisibleFeedItems(prev => [...prev, ...nextItems]);
-    if (currentLength + BATCH_SIZE >= allFeedItems.length) {
-        setHasMore(false);
-    }
-  }, [allFeedItems, visibleFeedItems.length, isLoading]);
-
-  const lastItemElementRef = useCallback((node: HTMLDivElement) => {
-    if (isLoading) return;
-    if (observer.current) observer.current.disconnect();
-    observer.current = new IntersectionObserver(entries => { if (entries[0].isIntersecting && hasMore) { loadMoreFeedItems(); } });
-    if (node) observer.current.observe(node);
-  }, [isLoading, hasMore, loadMoreFeedItems]);
-
   const filteredTopicHistory = topicHistory.filter(topic => 
       topic.headline.toLowerCase().includes(historySearchTerm.toLowerCase())
   );
@@ -617,13 +614,14 @@ function FeedPageComponent() {
       <main className="flex-1">
         <section className="container mx-auto px-4 sm:px-6 py-12 md:py-16">
           <div className="mx-auto max-w-6xl">
-            <div className="mx-auto mb-12 max-w-xl text-center"><h1 className="text-4xl font-extrabold md:text-6xl animate-gradient">Live Tech Feed</h1><p className="mt-4 text-lg text-muted-foreground">A curated feed of the latest buzz from across the tech world, managed by our team.</p><Button onClick={() => fetchFeed(true)} disabled={isLoading} className="mt-6"><RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />Refresh Feed</Button></div>
+            <div className="mx-auto mb-12 max-w-xl text-center"><h1 className="text-4xl font-extrabold md:text-6xl animate-gradient">Live Tech Feed</h1><p className="mt-4 text-lg text-muted-foreground">A curated feed of the latest buzz from across the tech world, managed by our team.</p><Button onClick={() => fetchInitialFeed(true)} disabled={isLoading} className="mt-6"><RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />Refresh Feed</Button></div>
             <div className="flex flex-col gap-8">
               {pinnedTopic && <PinnedTopicCard item={pinnedTopic} onViewImage={setImageToView} />}
               {visibleFeedItems.map((item, index) => ( <div ref={visibleFeedItems.length === index + 1 ? lastItemElementRef : null} key={item.id}><FeedItemCard item={item} onViewImage={setImageToView} /></div> ))}
             </div>
-            {isLoading && ( <div className="text-center py-12 flex justify-center items-center gap-2"><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-muted-foreground">Loading new content...</span></div> )}
-            {!isLoading && allFeedItems.length === 0 && !pinnedTopic && ( <div className="text-center py-12"><Card className="max-w-md mx-auto p-8 text-center bg-card/50"><Newspaper className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">The Feed is Quiet</h3><p className="mt-2 text-muted-foreground">There are no posts in the feed right now. Be the first to post!</p></Card></div> )}
+            {isLoading && ( <div className="text-center py-12 flex justify-center items-center gap-2"><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-muted-foreground">Loading...</span></div> )}
+            {isLoadingMore && ( <div className="text-center py-12 flex justify-center items-center gap-2"><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-muted-foreground">Loading more...</span></div> )}
+            {!isLoading && visibleFeedItems.length === 0 && !pinnedTopic && ( <div className="text-center py-12"><Card className="max-w-md mx-auto p-8 text-center bg-card/50"><Newspaper className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">The Feed is Quiet</h3><p className="mt-2 text-muted-foreground">There are no posts in the feed right now. Be the first to post!</p></Card></div> )}
             {!isLoading && !hasMore && visibleFeedItems.length > 0 && ( <div className="text-center py-12"><p className="text-muted-foreground">You've reached the end of the feed.</p></div> )}
           </div>
         </section>
@@ -678,7 +676,7 @@ function FeedPageComponent() {
                     <form onSubmit={addPostForm.handleSubmit(onAddPostSubmit)} id="add-post-form" className="flex-1 flex flex-col overflow-hidden">
                         <ScrollArea className="flex-1 p-6 pt-0">
                             <div className="space-y-4">
-                                <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><Input className="border-0 border-b rounded-none focus-visible:ring-0 text-lg px-0" placeholder={showPoll ? "Ask a question..." : "Post Headline..."} {...field} /></FormItem> )}/>
+                                <FormField control={addPostForm.control} name="headline" render={({ field }) => ( <FormItem><Input className="border-0 border-b rounded-none focus-visible:ring-0 text-lg px-0" placeholder={showPoll ? "Ask a question..." : "Post Headline..."} {...field} /><FormMessage /></FormItem> )}/>
                                 {!showPoll && (
                                     <FormField control={addPostForm.control} name="content" render={({ field }) => ( 
                                         <FormItem>
@@ -741,56 +739,6 @@ function FeedPageComponent() {
   );
 }
 
-const PollDisplay = ({ poll, userVote, onVote, hasVoted }: { poll: Poll; userVote: string | undefined, onVote: (option: string) => void; hasVoted: boolean; }) => {
-    const totalVotes = Object.values(poll.options).reduce((acc, votes) => acc + votes, 0);
-  
-    return (
-      <div className="mt-4 space-y-2">
-        {Object.entries(poll.options).map(([optionText, votes], index) => {
-            const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-            const isThisTheVotedOption = userVote === optionText;
-
-            if (hasVoted) {
-                return (
-                    <motion.div
-                        key={index}
-                        initial={{ opacity: 0.8 }}
-                        animate={{ opacity: 1 }}
-                        className="relative w-full h-10 flex items-center rounded-md overflow-hidden border"
-                    >
-                        <motion.div
-                            className="absolute h-full bg-primary/20 rounded-md"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${percentage}%`}}
-                            transition={{ duration: 0.5, ease: "easeOut" }}
-                        />
-                        <div className="relative z-10 flex items-center justify-between w-full px-4">
-                            <div className="flex items-center gap-2 font-semibold">
-                               {isThisTheVotedOption && <CheckCircle2 className="h-4 w-4 text-primary" />} 
-                               <span>{optionText}</span>
-                            </div>
-                            <span className="font-bold">{percentage}%</span>
-                        </div>
-                    </motion.div>
-                );
-            }
-    
-            return (
-                 <motion.div key={index} whileTap={{ scale: 0.98 }}>
-                    <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => onVote(optionText)}
-                    >
-                        {optionText}
-                    </Button>
-                </motion.div>
-            );
-        })}
-      </div>
-    );
-  };
-
 export default function FeedPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center h-screen w-full"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
@@ -798,3 +746,5 @@ export default function FeedPage() {
         </Suspense>
     )
 }
+
+    

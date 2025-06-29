@@ -10,7 +10,10 @@ function sanitizePath(path: string): string {
 }
 
 export async function trackPageView(path: string) {
-    if (!db || !path) return;
+    if (!db || !path) {
+        console.log('[Analytics] DB not initialized or no path, skipping track.');
+        return;
+    }
     
     // Ignore tracking for admin pages
     if (path.startsWith('/imam')) return;
@@ -26,7 +29,9 @@ export async function trackPageView(path: string) {
         }, { merge: true });
 
     } catch (error) {
-        console.error(`Failed to track page view for ${path}:`, error);
-        // Fail silently to not impact user experience
+        // This log will only appear on the server.
+        console.error(`[Analytics] Failed to track page view for ${path}:`, error);
+        // Fail silently to not impact user experience. The most common cause for this
+        // is Firestore security rules not allowing writes from unauthenticated users.
     }
 }

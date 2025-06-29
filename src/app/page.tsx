@@ -1,4 +1,5 @@
 
+
 import { ArticleSummarizer } from "@/components/article-summarizer";
 import { Icons } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { type Article } from "@/ai/flows/generate-articles-flow";
 import { CircuitPen3d } from "@/components/circuit-pen-3d";
 import { ClientLink } from "@/components/client-link";
 
+export const revalidate = 0;
 
 async function getLatestArticles(): Promise<(Article & {id: string})[] | null> {
   if (initializationError) {
@@ -235,3 +237,4 @@ export default async function Home() {
     </div>
   );
 }
+  

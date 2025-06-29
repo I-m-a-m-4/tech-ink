@@ -9,7 +9,7 @@ import { SiteBackgroundWrapper } from '@/components/site-background-wrapper';
 import { Suspense } from 'react';
 import { getSiteSettings } from '@/lib/settings';
 import { PageViewTracker } from '@/components/page-view-tracker';
-import { Analytics } from "@vercel/analytics/next"
+import { cookies } from 'next/headers';
 
 const siteConfig = {
   name: "Tech Ink Insights",
@@ -70,6 +70,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Opt into dynamic rendering to ensure the latest settings are always fetched.
+  cookies();
+  
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
